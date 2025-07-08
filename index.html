@@ -375,17 +375,47 @@
                 // Pitching
                 csv.push(`"${teamData.team.name} - Pitching"`);
                 csv.push('Player,Position,IP,H,R,ER,BB,SO,HR,ERA');
+                
+                let totalInningsPitched = 0;
+                let totalOuts = 0;
+                let totalHits = 0;
+                let totalRuns = 0;
+                let totalEarnedRuns = 0;
+                let totalBaseOnBalls = 0;
+                let totalStrikeOuts = 0;
+                let totalHomeRuns = 0;
+
                 teamData.pitchers.forEach(id => {
                     const p = teamData.players[`ID${id}`];
                     if (p && p.stats.pitching) {
                         const s = p.stats.pitching;
                         csv.push(`"${p.person.fullName}",${p.position.abbreviation},${s.inningsPitched ?? '0.0'},${s.hits ?? 0},${s.runs ?? 0},${s.earnedRuns ?? 0},${s.baseOnBalls ?? 0},${s.strikeOuts ?? 0},${s.homeRuns ?? 0},${p.seasonStats.pitching.era ?? 'N/A'}`);
+                        
+                        const ipParts = (s.inningsPitched ?? '0.0').toString().split('.');
+                        totalInningsPitched += parseInt(ipParts[0] || 0, 10);
+                        totalOuts += parseInt(ipParts[1] || 0, 10);
+
+                        totalHits += s.hits ?? 0;
+                        totalRuns += s.runs ?? 0;
+                        totalEarnedRuns += s.earnedRuns ?? 0;
+                        totalBaseOnBalls += s.baseOnBalls ?? 0;
+                        totalStrikeOuts += s.strikeOuts ?? 0;
+                        totalHomeRuns += s.homeRuns ?? 0;
                     }
                 });
+
+                totalInningsPitched += Math.floor(totalOuts / 3);
+                totalOuts = totalOuts % 3;
+                const totalIpString = `${totalInningsPitched}.${totalOuts}`;
+                
+                const totalIpForEra = totalInningsPitched + totalOuts / 3;
+                const totalEra = totalIpForEra > 0 ? ((totalEarnedRuns * 9) / totalIpForEra).toFixed(2) : '0.00';
+
+                csv.push(`"Total","",${totalIpString},${totalHits},${totalRuns},${totalEarnedRuns},${totalBaseOnBalls},${totalStrikeOuts},${totalHomeRuns},${totalEra}`);
+                csv.push('');
             };
 
             processTeam(away);
-            csv.push('');
             processTeam(home);
 
             return csv.join('\n');
@@ -453,12 +483,11 @@
             if (savedDate) {
                 initialDate = savedDate;
             } else {
-                // Default to today's date in KST
+                // Default to today's date
                 const today = new Date();
-                const kstOffset = 9 * 60; // KST is UTC+9
-                const localOffset = today.getTimezoneOffset();
-                const kstTime = new Date(today.getTime() + (kstOffset + localOffset) * 60000);
-                initialDate = kstTime.toISOString().split('T')[0];
+                const offset = today.getTimezoneOffset();
+                const localToday = new Date(today.getTime() - (offset * 60 * 1000));
+                initialDate = localToday.toISOString().split('T')[0];
             }
             
             gameDatePicker.value = initialDate;
