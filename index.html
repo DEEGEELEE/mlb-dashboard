@@ -37,9 +37,10 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        #download-all-csv-btn:disabled {
+        #download-all-csv-btn:disabled, #refresh-btn:disabled {
             cursor: not-allowed;
             background-color: #374151; /* bg-gray-700 */
+            opacity: 0.7;
         }
     </style>
 </head>
@@ -51,20 +52,28 @@
             <p class="text-lg text-gray-400 mt-2">Browse daily MLB schedules and box scores.</p>
         </header>
 
-        <div class="max-w-xl mx-auto mb-8 flex flex-col sm:flex-row gap-4 items-center">
+        <div class="max-w-2xl mx-auto mb-8 flex flex-col sm:flex-row gap-2 items-center justify-center">
+            <!-- Refresh Button -->
+            <div class="w-full sm:w-auto sm:pt-7">
+                 <button id="refresh-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm" title="Refresh data for selected date">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <!-- Date Picker -->
             <div class="w-full sm:w-auto flex-grow">
-                <label for="game-date-picker" class="block text-sm font-medium text-gray-300 mb-2">Select Date:</label>
+                <label for="game-date-picker" class="block text-sm font-medium text-gray-300 mb-2 text-center sm:text-left">Select Date:</label>
                 <input type="date" id="game-date-picker" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
             </div>
-            <div class="w-full sm:w-auto pt-0 sm:pt-7">
+            <!-- Download Button -->
+            <div class="w-full sm:w-auto sm:pt-7">
                  <button id="download-all-csv-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm">
                     <span id="download-btn-text">
                         <i data-lucide="download" class="inline-block w-4 h-4 mr-2"></i>
-                        Download All Games (CSV)
+                        Download All (CSV)
                     </span>
                     <span id="download-btn-loader" class="hidden">
                         <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5 mr-2 inline-block"></div>
-                        Fetching data...
+                        Fetching...
                     </span>
                 </button>
             </div>
@@ -115,6 +124,7 @@
         const downloadAllCsvBtn = document.getElementById('download-all-csv-btn');
         const downloadBtnText = document.getElementById('download-btn-text');
         const downloadBtnLoader = document.getElementById('download-btn-loader');
+        const refreshBtn = document.getElementById('refresh-btn');
         
         const boxscoreModal = document.getElementById('boxscore-modal');
         const modalContent = document.getElementById('modal-content');
@@ -141,6 +151,7 @@
             noGamesMessage.classList.add('hidden');
             loader.classList.remove('hidden');
             downloadAllCsvBtn.disabled = true;
+            refreshBtn.disabled = true;
 
             try {
                 const response = await fetch(`${API_BASE_URL}/schedule?sportId=1&date=${dateString}`);
@@ -159,6 +170,7 @@
                 gamesGrid.innerHTML = `<p class="text-red-400 text-center col-span-full">Could not fetch game data. Please try again later.</p>`;
             } finally {
                 loader.classList.add('hidden');
+                refreshBtn.disabled = false;
             }
         }
 
@@ -291,6 +303,7 @@
             }
 
             downloadAllCsvBtn.disabled = true;
+            refreshBtn.disabled = true;
             downloadBtnText.classList.add('hidden');
             downloadBtnLoader.classList.remove('hidden');
 
@@ -314,6 +327,7 @@
                 alert("Failed to download all game data. Please check the console for errors.");
             } finally {
                 downloadAllCsvBtn.disabled = false;
+                refreshBtn.disabled = false;
                 downloadBtnText.classList.remove('hidden');
                 downloadBtnLoader.classList.add('hidden');
             }
@@ -410,7 +424,16 @@
         }
 
         // --- Event Listeners ---
-        gameDatePicker.addEventListener('change', () => fetchAndDisplayGames(gameDatePicker.value));
+        gameDatePicker.addEventListener('change', () => {
+            const selectedDate = gameDatePicker.value;
+            localStorage.setItem('mlbDashboardSelectedDate', selectedDate); // Save date to browser storage
+            fetchAndDisplayGames(selectedDate);
+        });
+
+        refreshBtn.addEventListener('click', () => {
+            fetchAndDisplayGames(gameDatePicker.value);
+        });
+
         gamesGrid.addEventListener('click', (e) => {
             const gameCard = e.target.closest('[data-game-pk]');
             if (gameCard) fetchAndDisplayBoxscore(gameCard.dataset.gamePk);
@@ -424,12 +447,22 @@
 
         // --- Initialization ---
         function init() {
-            const today = new Date();
-            const offset = today.getTimezoneOffset();
-            const localToday = new Date(today.getTime() - (offset * 60 * 1000));
-            gameDatePicker.value = localToday.toISOString().split('T')[0];
+            const savedDate = localStorage.getItem('mlbDashboardSelectedDate');
+            let initialDate;
+
+            if (savedDate) {
+                initialDate = savedDate;
+            } else {
+                // Default to today's date in KST
+                const today = new Date();
+                const kstOffset = 9 * 60; // KST is UTC+9
+                const localOffset = today.getTimezoneOffset();
+                const kstTime = new Date(today.getTime() + (kstOffset + localOffset) * 60000);
+                initialDate = kstTime.toISOString().split('T')[0];
+            }
             
-            fetchAndDisplayGames(gameDatePicker.value);
+            gameDatePicker.value = initialDate;
+            fetchAndDisplayGames(initialDate);
             lucide.createIcons();
         }
 
