@@ -182,17 +182,38 @@
         function renderGames(games) {
             gamesGrid.innerHTML = '';
             games.forEach(game => {
-                const gameCard = document.createElement('div');
-                gameCard.className = 'bg-gray-800 rounded-lg p-4 flex flex-col cursor-pointer hover:ring-2 ring-blue-500 transition-all duration-200';
-                gameCard.dataset.gamePk = game.gamePk;
-
                 const awayTeam = game.teams.away;
                 const homeTeam = game.teams.home;
                 const status = game.status.detailedState;
                 const isFinal = status === 'Final' || status.includes('Completed');
+                const isPostponed = status === 'Postponed';
+                const isDoubleHeader = game.doubleHeader === 'Y' || game.doubleHeader === 'S';
+                const isResumed = !!game.resumedFrom;
+
+                const gameCard = document.createElement('div');
+                let cardClasses = 'bg-gray-800 rounded-lg p-4 flex flex-col transition-all duration-200';
+                
+                if (isPostponed) {
+                    cardClasses += ' bg-red-900/40 border-2 border-red-600';
+                } else {
+                    cardClasses += ' cursor-pointer hover:ring-2 ring-blue-500';
+                    gameCard.dataset.gamePk = game.gamePk;
+                    if (isDoubleHeader || isResumed) {
+                         cardClasses += ' border-2 border-yellow-500';
+                    }
+                }
+                gameCard.className = cardClasses;
 
                 let decisionHtml = '';
-                if (isFinal) {
+                if (isPostponed) {
+                    const rescheduledDate = game.rescheduledGameDate ? new Date(game.rescheduledGameDate).toLocaleDateString() : 'TBD';
+                    decisionHtml = `
+                    <div class="mt-4 pt-2 text-xs text-red-300">
+                        <p class="font-semibold">Rescheduled to: ${rescheduledDate}</p>
+                        ${game.description ? `<p>${game.description}</p>` : ''}
+                    </div>
+                    `;
+                } else if (isFinal) {
                     const winnerName = normalizeString(game.decisions?.winner?.fullName || 'N/A');
                     const loserName = normalizeString(game.decisions?.loser?.fullName || 'N/A');
                     const saveName = game.decisions?.save ? normalizeString(game.decisions.save.fullName) : '';
@@ -214,16 +235,23 @@
                     `;
                 }
                 
+                let gameTypeIndicator = '';
+                if (isDoubleHeader) {
+                    gameTypeIndicator = `<span class="text-xs font-bold text-yellow-400"> (DH Game ${game.gameNumber})</span>`;
+                } else if (isResumed) {
+                     gameTypeIndicator = `<span class="text-xs font-bold text-yellow-400"> (Resumed)</span>`;
+                }
+
                 gameCard.innerHTML = `
                     <div class="flex-grow">
-                        <p class="text-sm text-gray-400 mb-2">${status} - ${new Date(game.gameDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                        <p class="text-sm text-gray-400 mb-2">${status}${gameTypeIndicator} ${isPostponed ? '' : `- ${new Date(game.gameDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}</p>
                         <div class="flex items-center justify-between mb-2">
                             <span class="font-semibold text-lg">${awayTeam.team.name}</span>
-                            <span class="font-bold text-2xl">${awayTeam.score ?? 0}</span>
+                            <span class="font-bold text-2xl">${isPostponed ? '-' : (awayTeam.score ?? 0)}</span>
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="font-semibold text-lg">${homeTeam.team.name}</span>
-                            <span class="font-bold text-2xl">${homeTeam.score ?? 0}</span>
+                            <span class="font-bold text-2xl">${isPostponed ? '-' : (homeTeam.score ?? 0)}</span>
                         </div>
                     </div>
                     ${decisionHtml}
@@ -267,57 +295,64 @@
             
             const createPlayerTable = (teamData, type) => {
                 const players = teamData.players;
-                const playerIDs = type === 'batting' ? teamData.batters : teamData.pitchers;
                 const statsType = type === 'batting' ? 'batting' : 'pitching';
                 const headers = type === 'batting' 
                     ? ['Player', 'AB', 'R', 'H', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS'] 
                     : ['Player', 'IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA', 'Result'];
-                
-                const battingOrderMap = new Map(teamData.battingOrder?.map((id, index) => [`ID${id}`, index + 1]));
-                const pitcherIds = new Set(teamData.pitchers.map(id => `ID${id}`));
 
                 let tableRows = '';
-                playerIDs.forEach(playerID => {
-                     const player = players[`ID${playerID}`];
-                     if (type === 'batting' && pitcherIds.has(`ID${player.person.id}`)) {
-                         return; // Skip pitchers in the batting table
-                     }
+                
+                if (type === 'batting') {
+                    const battingOrder = teamData.battingOrder.map(id => `ID${id}`);
+                    const allBattersInGame = new Set(teamData.batters.map(id => `ID${id}`));
+                    const subs = [...allBattersInGame].filter(id => !battingOrder.includes(id));
+                    const orderedPlayerIDs = [...battingOrder, ...subs];
+                    const pitcherIds = new Set(teamData.pitchers.map(id => `ID${id}`));
 
-                     if (player && player.stats[statsType]) {
-                        const stats = player.stats[statsType];
-                        let resultCell = '';
-                        if (type === 'pitching') {
+                    orderedPlayerIDs.forEach((playerID) => {
+                        const player = players[playerID];
+                        if (player && player.stats.batting && !pitcherIds.has(playerID)) {
+                            const stats = player.stats.batting;
+                            let namePrefix = '';
+                            const battingOrderIndex = battingOrder.indexOf(playerID);
+                            if (battingOrderIndex !== -1) {
+                                namePrefix = `${battingOrderIndex + 1}. `;
+                            } else {
+                                namePrefix = 'PH ';
+                            }
+                            tableRows += `
+                                <tr>
+                                    <td class="whitespace-nowrap text-left">${namePrefix}${player.person.fullName} <span class="text-gray-400">${player.position.abbreviation}</span></td>
+                                    <td>${stats.atBats ?? 0}</td><td>${stats.runs ?? 0}</td><td>${stats.hits ?? 0}</td>
+                                    <td>${stats.rbi ?? 0}</td><td>${stats.baseOnBalls ?? 0}</td><td>${stats.strikeOuts ?? 0}</td>
+                                    <td>${stats.leftOnBase ?? 0}</td><td>${player.seasonStats.batting.avg ?? '.---'}</td><td>${player.seasonStats.batting.ops ?? '.---'}</td>
+                                </tr>`;
+                        }
+                    });
+                } else { // Pitching
+                    teamData.pitchers.forEach((playerID, index) => {
+                        const player = players[`ID${playerID}`];
+                        if (player && player.stats.pitching) {
+                            const stats = player.stats.pitching;
+                            let resultCell = '';
                             if (decisions?.winner?.id === player.person.id) resultCell = 'W';
                             else if (decisions?.loser?.id === player.person.id) resultCell = 'L';
                             else if (decisions?.save?.id === player.person.id) resultCell = 'S';
                             else if (stats.holds > 0) resultCell = 'H';
-                        }
-                        
-                        let namePrefix = '';
-                        if (type === 'batting') {
-                            if (battingOrderMap.has(`ID${player.person.id}`)) {
-                                namePrefix = `${battingOrderMap.get(`ID${player.person.id}`)}. `;
-                            } else if (player.position.abbreviation === 'PH') {
-                                namePrefix = 'PH ';
-                            }
-                        }
+                            
+                            const position = index === 0 ? 'SP' : 'RP';
 
-                        tableRows += `
-                            <tr>
-                                <td class="whitespace-nowrap text-left">${namePrefix}${player.person.fullName} <span class="text-gray-400">${player.position.abbreviation}</span></td>
-                                ${ type === 'batting' ? `
-                                <td>${stats.atBats ?? 0}</td><td>${stats.runs ?? 0}</td><td>${stats.hits ?? 0}</td>
-                                <td>${stats.rbi ?? 0}</td><td>${stats.baseOnBalls ?? 0}</td><td>${stats.strikeOuts ?? 0}</td>
-                                <td>${stats.leftOnBase ?? 0}</td><td>${player.seasonStats.batting.avg ?? '.---'}</td><td>${player.seasonStats.batting.ops ?? '.---'}</td>
-                                ` : `
-                                <td>${stats.inningsPitched ?? '0.0'}</td><td>${stats.hits ?? 0}</td><td>${stats.runs ?? 0}</td>
-                                <td>${stats.earnedRuns ?? 0}</td><td>${stats.baseOnBalls ?? 0}</td><td>${stats.strikeOuts ?? 0}</td>
-                                <td>${stats.homeRuns ?? 0}</td><td>${player.seasonStats.pitching.era ?? '-.--'}</td><td>${resultCell}</td>
-                                `}
-                            </tr>
-                        `;
-                     }
-                });
+                            tableRows += `
+                                <tr>
+                                    <td class="whitespace-nowrap text-left">${player.person.fullName} <span class="text-gray-400">${position}</span></td>
+                                    <td>${stats.inningsPitched ?? '0.0'}</td><td>${stats.hits ?? 0}</td><td>${stats.runs ?? 0}</td>
+                                    <td>${stats.earnedRuns ?? 0}</td><td>${stats.baseOnBalls ?? 0}</td><td>${stats.strikeOuts ?? 0}</td>
+                                    <td>${stats.homeRuns ?? 0}</td><td>${player.seasonStats.pitching.era ?? '-.--'}</td><td>${resultCell}</td>
+                                </tr>`;
+                        }
+                    });
+                }
+
 
                 return `
                     <div class="mb-8">
@@ -462,22 +497,25 @@
 
             const processTeam = (teamData) => {
                 const pitcherIds = new Set(teamData.pitchers.map(id => `ID${id}`));
-                const battingOrderMap = new Map(teamData.battingOrder?.map((id, index) => [`ID${id}`, index + 1]));
+                const battingOrder = teamData.battingOrder.map(id => `ID${id}`);
+                const allBattersInGame = new Set(teamData.batters.map(id => `ID${id}`));
+                const subs = [...allBattersInGame].filter(id => !battingOrder.includes(id));
+                const orderedBatters = [...battingOrder, ...subs];
 
                 // Batting
                 data.push([`${teamData.team.name} - Batting`]);
                 data.push(['Player', 'Position', 'AB', 'R', 'H', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS']);
                 
-                teamData.batters.forEach(id => {
-                    const p = teamData.players[`ID${id}`];
-                    // Exclude pitchers from the batting section
-                    if (p && p.stats.batting && !pitcherIds.has(`ID${p.person.id}`)) {
+                orderedBatters.forEach((id) => {
+                    const p = teamData.players[id];
+                    if (p && p.stats.batting && !pitcherIds.has(id)) {
                         const s = p.stats.batting;
                         const normalizedName = normalizeString(p.person.fullName);
                         let namePrefix = '';
-                        if (battingOrderMap.has(`ID${p.person.id}`)) {
-                            namePrefix = `${battingOrderMap.get(`ID${p.person.id}`)}. `;
-                        } else if (p.position.abbreviation === 'PH') {
+                        const battingOrderIndex = battingOrder.indexOf(id);
+                        if (battingOrderIndex !== -1) {
+                            namePrefix = `${battingOrderIndex + 1}. `;
+                        } else {
                             namePrefix = 'PH ';
                         }
                         const playerNameCell = `${namePrefix}${normalizedName}`;
@@ -511,7 +549,9 @@
                         else if (decisions?.save?.id === p.person.id) result = 'S';
                         else if (s.holds > 0) result = 'H';
                         
-                        const pitcherRow = [normalizedName, p.position.abbreviation, ipString, s.hits ?? 0, s.runs ?? 0, s.earnedRuns ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.homeRuns ?? 0, p.seasonStats.pitching.era ?? 'N/A', result];
+                        const position = index === 0 ? 'SP' : 'RP';
+                        
+                        const pitcherRow = [normalizedName, position, ipString, s.hits ?? 0, s.runs ?? 0, s.earnedRuns ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.homeRuns ?? 0, p.seasonStats.pitching.era ?? 'N/A', result];
                         
                         if (index === 0) {
                             pitcherRow.push(
