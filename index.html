@@ -193,18 +193,23 @@
 
                 let decisionHtml = '';
                 if (isFinal) {
+                    const winnerName = normalizeString(game.decisions?.winner?.fullName || 'N/A');
+                    const loserName = normalizeString(game.decisions?.loser?.fullName || 'N/A');
+                    const saveName = game.decisions?.save ? normalizeString(game.decisions.save.fullName) : '';
                     decisionHtml = `
                     <div class="border-t border-gray-700 mt-4 pt-2 text-xs text-gray-400">
-                        <p>W: ${game.decisions?.winner?.fullName || 'N/A'}</p>
-                        <p>L: ${game.decisions?.loser?.fullName || 'N/A'}</p>
-                        ${game.decisions?.save ? `<p>S: ${game.decisions.save.fullName}</p>` : ''}
+                        <p>W: ${winnerName}</p>
+                        <p>L: ${loserName}</p>
+                        ${saveName ? `<p>S: ${saveName}</p>` : ''}
                     </div>
                     `;
                 } else {
+                     const awayPitcher = normalizeString(game.teams.away.probablePitcher?.fullName || 'TBD');
+                     const homePitcher = normalizeString(game.teams.home.probablePitcher?.fullName || 'TBD');
                      decisionHtml = `
                     <div class="border-t border-gray-700 mt-4 pt-2 text-xs text-gray-400">
-                        <p>A: ${game.teams.away.probablePitcher?.fullName || 'TBD'}</p>
-                        <p>H: ${game.teams.home.probablePitcher?.fullName || 'TBD'}</p>
+                        <p>A: ${awayPitcher}</p>
+                        <p>H: ${homePitcher}</p>
                     </div>
                     `;
                 }
@@ -265,12 +270,19 @@
                 const playerIDs = type === 'batting' ? teamData.batters : teamData.pitchers;
                 const statsType = type === 'batting' ? 'batting' : 'pitching';
                 const headers = type === 'batting' 
-                    ? ['AB', 'R', 'H', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS'] 
-                    : ['IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA', 'Result'];
+                    ? ['Player', 'AB', 'R', 'H', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS'] 
+                    : ['Player', 'IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA', 'Result'];
+                
+                const battingOrderMap = new Map(teamData.battingOrder?.map((id, index) => [`ID${id}`, index + 1]));
+                const pitcherIds = new Set(teamData.pitchers.map(id => `ID${id}`));
 
                 let tableRows = '';
                 playerIDs.forEach(playerID => {
                      const player = players[`ID${playerID}`];
+                     if (type === 'batting' && pitcherIds.has(`ID${player.person.id}`)) {
+                         return; // Skip pitchers in the batting table
+                     }
+
                      if (player && player.stats[statsType]) {
                         const stats = player.stats[statsType];
                         let resultCell = '';
@@ -280,10 +292,19 @@
                             else if (decisions?.save?.id === player.person.id) resultCell = 'S';
                             else if (stats.holds > 0) resultCell = 'H';
                         }
+                        
+                        let namePrefix = '';
+                        if (type === 'batting') {
+                            if (battingOrderMap.has(`ID${player.person.id}`)) {
+                                namePrefix = `${battingOrderMap.get(`ID${player.person.id}`)}. `;
+                            } else if (player.position.abbreviation === 'PH') {
+                                namePrefix = 'PH ';
+                            }
+                        }
 
                         tableRows += `
                             <tr>
-                                <td class="whitespace-nowrap">${player.person.fullName} <span class="text-gray-400">${player.position.abbreviation}</span></td>
+                                <td class="whitespace-nowrap text-left">${namePrefix}${player.person.fullName} <span class="text-gray-400">${player.position.abbreviation}</span></td>
                                 ${ type === 'batting' ? `
                                 <td>${stats.atBats ?? 0}</td><td>${stats.runs ?? 0}</td><td>${stats.hits ?? 0}</td>
                                 <td>${stats.rbi ?? 0}</td><td>${stats.baseOnBalls ?? 0}</td><td>${stats.strikeOuts ?? 0}</td>
@@ -303,7 +324,7 @@
                         <h4 class="text-xl font-semibold mb-2">${teamData.team.name} ${type.charAt(0).toUpperCase() + type.slice(1)}</h4>
                         <div class="overflow-x-auto rounded-lg border border-gray-700">
                             <table class="min-w-full divide-y divide-gray-700 stat-table">
-                                <thead class="bg-gray-800"><tr><th class="text-left">Player</th>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+                                <thead class="bg-gray-800"><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
                                 <tbody class="divide-y divide-gray-700">${tableRows}</tbody>
                             </table>
                         </div>
@@ -441,6 +462,7 @@
 
             const processTeam = (teamData) => {
                 const pitcherIds = new Set(teamData.pitchers.map(id => `ID${id}`));
+                const battingOrderMap = new Map(teamData.battingOrder?.map((id, index) => [`ID${id}`, index + 1]));
 
                 // Batting
                 data.push([`${teamData.team.name} - Batting`]);
@@ -448,10 +470,18 @@
                 
                 teamData.batters.forEach(id => {
                     const p = teamData.players[`ID${id}`];
-                    if (p && p.stats.batting && !pitcherIds.has(`ID${id}`)) {
+                    // Exclude pitchers from the batting section
+                    if (p && p.stats.batting && !pitcherIds.has(`ID${p.person.id}`)) {
                         const s = p.stats.batting;
                         const normalizedName = normalizeString(p.person.fullName);
-                        data.push([normalizedName, p.position.abbreviation, s.atBats ?? 0, s.runs ?? 0, s.hits ?? 0, s.rbi ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.leftOnBase ?? 0, p.seasonStats.batting.avg ?? 'N/A', p.seasonStats.batting.ops ?? 'N/A']);
+                        let namePrefix = '';
+                        if (battingOrderMap.has(`ID${p.person.id}`)) {
+                            namePrefix = `${battingOrderMap.get(`ID${p.person.id}`)}. `;
+                        } else if (p.position.abbreviation === 'PH') {
+                            namePrefix = 'PH ';
+                        }
+                        const playerNameCell = `${namePrefix}${normalizedName}`;
+                        data.push([playerNameCell, p.position.abbreviation, s.atBats ?? 0, s.runs ?? 0, s.hits ?? 0, s.rbi ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.leftOnBase ?? 0, p.seasonStats.batting.avg ?? 'N/A', p.seasonStats.batting.ops ?? 'N/A']);
                     }
                 });
                 const teamBattingStats = teamData.teamStats.batting;
