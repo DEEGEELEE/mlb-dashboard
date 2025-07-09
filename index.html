@@ -155,7 +155,7 @@
             [downloadAllBtn, refreshBtn].forEach(btn => btn.disabled = true);
 
             try {
-                const response = await fetch(`${API_BASE_URL}/schedule?sportId=1&date=${dateString}`);
+                const response = await fetch(`${API_BASE_URL}/schedule?sportId=1&date=${dateString}&hydrate=decisions`);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
 
@@ -189,6 +189,18 @@
                 const awayTeam = game.teams.away;
                 const homeTeam = game.teams.home;
                 const status = game.status.detailedState;
+                const isFinal = status === 'Final' || status.includes('Completed');
+
+                let decisionHtml = '';
+                if (isFinal) {
+                    decisionHtml = `
+                    <div class="border-t border-gray-700 mt-4 pt-2 text-xs text-gray-400">
+                        <p>W: ${game.decisions?.winner?.fullName || 'TBD'}</p>
+                        <p>L: ${game.decisions?.loser?.fullName || 'TBD'}</p>
+                        ${game.decisions?.save ? `<p>S: ${game.decisions.save.fullName}</p>` : ''}
+                    </div>
+                    `;
+                }
                 
                 gameCard.innerHTML = `
                     <div class="flex-grow">
@@ -202,11 +214,7 @@
                             <span class="font-bold text-2xl">${homeTeam.score ?? 0}</span>
                         </div>
                     </div>
-                    <div class="border-t border-gray-700 mt-4 pt-2 text-xs text-gray-400">
-                        <p>W: ${game.decisions?.winner?.fullName || 'TBD'}</p>
-                        <p>L: ${game.decisions?.loser?.fullName || 'TBD'}</p>
-                        ${game.decisions?.save ? `<p>S: ${game.decisions.save.fullName}</p>` : ''}
-                    </div>
+                    ${decisionHtml}
                 `;
                 gamesGrid.appendChild(gameCard);
             });
@@ -223,10 +231,11 @@
             modalLoader.classList.remove('hidden');
 
             try {
+                const game = currentGames.find(g => g.gamePk == gamePk);
                 const response = await fetch(`${API_BASE_URL}/game/${gamePk}/boxscore`);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
-                renderBoxscore(data);
+                renderBoxscore(data, game.decisions);
             } catch (error) {
                 console.error("Error fetching boxscore:", error);
                 modalBody.innerHTML = `<p class="text-red-400 text-center">Could not fetch box score data.</p>`;
@@ -238,8 +247,9 @@
         /**
          * Renders the detailed box score inside the modal
          * @param {Object} data The boxscore data from the API
+         * @param {Object} decisions The decisions object for the game
          */
-        function renderBoxscore(data) {
+        function renderBoxscore(data, decisions) {
             const { away, home } = data.teams;
             modalTitle.textContent = `${away.team.name} @ ${home.team.name}`;
             
@@ -248,25 +258,33 @@
                 const playerIDs = type === 'batting' ? teamData.batters : teamData.pitchers;
                 const statsType = type === 'batting' ? 'batting' : 'pitching';
                 const headers = type === 'batting' 
-                    ? ['AB', 'R', 'H', 'RBI', 'BB', 'SO', 'LOB', 'AVG'] 
-                    : ['IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA'];
+                    ? ['AB', 'R', 'H', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS'] 
+                    : ['IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA', 'Result'];
 
                 let tableRows = '';
                 playerIDs.forEach(playerID => {
                      const player = players[`ID${playerID}`];
                      if (player && player.stats[statsType]) {
                         const stats = player.stats[statsType];
+                        let resultCell = '';
+                        if (type === 'pitching') {
+                            if (decisions?.winner?.id === player.person.id) resultCell = 'W';
+                            else if (decisions?.loser?.id === player.person.id) resultCell = 'L';
+                            else if (decisions?.save?.id === player.person.id) resultCell = 'S';
+                            else if (stats.holds > 0) resultCell = 'H';
+                        }
+
                         tableRows += `
                             <tr>
                                 <td class="whitespace-nowrap">${player.person.fullName} <span class="text-gray-400">${player.position.abbreviation}</span></td>
                                 ${ type === 'batting' ? `
                                 <td>${stats.atBats ?? 0}</td><td>${stats.runs ?? 0}</td><td>${stats.hits ?? 0}</td>
                                 <td>${stats.rbi ?? 0}</td><td>${stats.baseOnBalls ?? 0}</td><td>${stats.strikeOuts ?? 0}</td>
-                                <td>${stats.leftOnBase ?? 0}</td><td>${player.seasonStats.batting.avg ?? '.---'}</td>
+                                <td>${stats.leftOnBase ?? 0}</td><td>${player.seasonStats.batting.avg ?? '.---'}</td><td>${player.seasonStats.batting.ops ?? '.---'}</td>
                                 ` : `
                                 <td>${stats.inningsPitched ?? '0.0'}</td><td>${stats.hits ?? 0}</td><td>${stats.runs ?? 0}</td>
                                 <td>${stats.earnedRuns ?? 0}</td><td>${stats.baseOnBalls ?? 0}</td><td>${stats.strikeOuts ?? 0}</td>
-                                <td>${stats.homeRuns ?? 0}</td><td>${player.seasonStats.pitching.era ?? '-.--'}</td>
+                                <td>${stats.homeRuns ?? 0}</td><td>${player.seasonStats.pitching.era ?? '-.--'}</td><td>${resultCell}</td>
                                 `}
                             </tr>
                         `;
@@ -312,7 +330,8 @@
                 const gameDataPromises = currentGames.map(game => {
                     const boxscorePromise = fetch(`${API_BASE_URL}/game/${game.gamePk}/boxscore`).then(res => res.json());
                     const linescorePromise = fetch(`${API_BASE_URL}/game/${game.gamePk}/linescore`).then(res => res.json());
-                    return Promise.all([boxscorePromise, linescorePromise]);
+                    // Pass along the decisions from the initial fetch
+                    return Promise.all([boxscorePromise, linescorePromise, Promise.resolve(game.decisions)]);
                 });
 
                 const allGamesData = await Promise.all(gameDataPromises);
@@ -322,8 +341,8 @@
                 
                 const maxInnings = Math.max(...allGamesData.map(([, ls]) => ls.innings.length));
 
-                allGamesData.forEach(([boxscore, linescore]) => {
-                    allSheetData.push(...convertGameDataToArray(boxscore, linescore, maxInnings));
+                allGamesData.forEach(([boxscore, linescore, decisions]) => {
+                    allSheetData.push(...convertGameDataToArray(boxscore, linescore, decisions, maxInnings));
                     allSheetData.push([]); // Blank row between games
                     allSheetData.push([]); // Blank row between games
                 });
@@ -388,10 +407,11 @@
          * Converts a single game's data into an array of arrays for XLSX.
          * @param {object} boxscore - The boxscore data for a game.
          * @param {object} linescore - The linescore data for a game.
+         * @param {object} decisions - The decisions object for the game.
          * @param {number} maxInnings - The maximum number of innings for the day for padding.
          * @returns {Array<Array<string>>} An array of rows for one game.
          */
-        function convertGameDataToArray(boxscore, linescore, maxInnings) {
+        function convertGameDataToArray(boxscore, linescore, decisions, maxInnings) {
             const { away, home } = boxscore.teams;
             let data = [];
 
@@ -417,61 +437,29 @@
 
                 // Batting
                 data.push([`${teamData.team.name} - Batting`]);
-                data.push(['Player', 'Position', 'AB', 'R', 'H', 'RBI', 'BB', 'SO', 'LOB', 'AVG']);
-                let totalAtBats = 0, totalRunsBatting = 0, totalHitsBatting = 0, totalRbi = 0;
-                let totalBaseOnBallsBatting = 0, totalStrikeOutsBatting = 0, totalLeftOnBase = 0;
-
+                data.push(['Player', 'Position', 'AB', 'R', 'H', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS']);
+                
                 teamData.batters.forEach(id => {
                     const p = teamData.players[`ID${id}`];
                     if (p && p.stats.batting && !pitcherIds.has(`ID${id}`)) {
                         const s = p.stats.batting;
                         const normalizedName = normalizeString(p.person.fullName);
-                        data.push([normalizedName, p.position.abbreviation, s.atBats ?? 0, s.runs ?? 0, s.hits ?? 0, s.rbi ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.leftOnBase ?? 0, p.seasonStats.batting.avg ?? 'N/A']);
-                        
-                        totalAtBats += s.atBats ?? 0;
-                        totalRunsBatting += s.runs ?? 0;
-                        totalHitsBatting += s.hits ?? 0;
-                        totalRbi += s.rbi ?? 0;
-                        totalBaseOnBallsBatting += s.baseOnBalls ?? 0;
-                        totalStrikeOutsBatting += s.strikeOuts ?? 0;
-                        totalLeftOnBase += s.leftOnBase ?? 0;
+                        data.push([normalizedName, p.position.abbreviation, s.atBats ?? 0, s.runs ?? 0, s.hits ?? 0, s.rbi ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.leftOnBase ?? 0, p.seasonStats.batting.avg ?? 'N/A', p.seasonStats.batting.ops ?? 'N/A']);
                     }
                 });
-                const totalAvg = totalAtBats > 0 ? (totalHitsBatting / totalAtBats).toFixed(3).substring(1) : '.000';
-                data.push(['Total', '', totalAtBats, totalRunsBatting, totalHitsBatting, totalRbi, totalBaseOnBallsBatting, totalStrikeOutsBatting, totalLeftOnBase, totalAvg]);
+                const teamBattingStats = teamData.teamStats.batting;
+                data.push(['Total', '', teamBattingStats.atBats, teamBattingStats.runs, teamBattingStats.hits, teamBattingStats.rbi, teamBattingStats.baseOnBalls, teamBattingStats.strikeOuts, teamBattingStats.leftOnBase, teamBattingStats.avg, teamBattingStats.ops]);
                 data.push([]);
 
                 // Pitching
                 data.push([`${teamData.team.name} - Pitching`]);
-                const pitchingHeader = ['Player', 'Position', 'IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA'];
+                const pitchingHeader = ['Player', 'Position', 'IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA', 'Result'];
                 const totalHeader = ['', 'Total IP', 'Total H', 'Total R', 'Total ER', 'Total BB', 'Total SO', 'Total HR', 'Total ERA'];
                 data.push([...pitchingHeader, ...totalHeader]);
                 
-                let totalInningsPitched = 0, totalOuts = 0, totalHits = 0, totalRuns = 0;
-                let totalEarnedRuns = 0, totalBaseOnBalls = 0, totalStrikeOuts = 0, totalHomeRuns = 0;
-
-                teamData.pitchers.forEach(id => {
-                    const p = teamData.players[`ID${id}`];
-                    if (p && p.stats.pitching) {
-                        const s = p.stats.pitching;
-                        const ipParts = (s.inningsPitched ?? '0.0').toString().split('.');
-                        totalInningsPitched += parseInt(ipParts[0] || 0, 10);
-                        totalOuts += parseInt(ipParts[1] || 0, 10);
-                        totalHits += s.hits ?? 0;
-                        totalRuns += s.runs ?? 0;
-                        totalEarnedRuns += s.earnedRuns ?? 0;
-                        totalBaseOnBalls += s.baseOnBalls ?? 0;
-                        totalStrikeOuts += s.strikeOuts ?? 0;
-                        totalHomeRuns += s.homeRuns ?? 0;
-                    }
-                });
-
-                totalInningsPitched += Math.floor(totalOuts / 3);
-                totalOuts = totalOuts % 3;
-                const totalIpDecimalString = `${totalInningsPitched}.${totalOuts}`;
-                const totalIpString = formatIp(totalIpDecimalString);
-                const totalIpForEra = totalInningsPitched + totalOuts / 3;
-                const totalEra = totalIpForEra > 0 ? ((totalEarnedRuns * 9) / totalIpForEra).toFixed(2) : '0.00';
+                const teamPitchingStats = teamData.teamStats.pitching;
+                const totalIpString = formatIp(teamPitchingStats.inningsPitched);
+                const totalEra = teamPitchingStats.era;
 
                 teamData.pitchers.forEach((id, index) => {
                     const p = teamData.players[`ID${id}`];
@@ -480,18 +468,24 @@
                         const normalizedName = normalizeString(p.person.fullName);
                         const ipString = formatIp(s.inningsPitched ?? '0.0');
                         
-                        const pitcherRow = [normalizedName, p.position.abbreviation, ipString, s.hits ?? 0, s.runs ?? 0, s.earnedRuns ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.homeRuns ?? 0, p.seasonStats.pitching.era ?? 'N/A'];
+                        let result = '';
+                        if (decisions?.winner?.id === p.person.id) result = 'W';
+                        else if (decisions?.loser?.id === p.person.id) result = 'L';
+                        else if (decisions?.save?.id === p.person.id) result = 'S';
+                        else if (s.holds > 0) result = 'H';
+                        
+                        const pitcherRow = [normalizedName, p.position.abbreviation, ipString, s.hits ?? 0, s.runs ?? 0, s.earnedRuns ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.homeRuns ?? 0, p.seasonStats.pitching.era ?? 'N/A', result];
                         
                         if (index === 0) {
                             pitcherRow.push(
                                 '', // Empty cell for spacing
                                 totalIpString, 
-                                totalHits, 
-                                totalRuns, 
-                                totalEarnedRuns, 
-                                totalBaseOnBalls, 
-                                totalStrikeOuts, 
-                                totalHomeRuns, 
+                                teamPitchingStats.hits, 
+                                teamPitchingStats.runs, 
+                                teamPitchingStats.earnedRuns, 
+                                teamPitchingStats.baseOnBalls, 
+                                teamPitchingStats.strikeOuts, 
+                                teamPitchingStats.homeRuns, 
                                 totalEra
                             );
                         }
@@ -549,11 +543,13 @@
             if (savedDate) {
                 initialDate = savedDate;
             } else {
-                // Default to today's date
+                // Default to yesterday's date to ensure there are completed games
                 const today = new Date();
-                const offset = today.getTimezoneOffset();
-                const localToday = new Date(today.getTime() - (offset * 60 * 1000));
-                initialDate = localToday.toISOString().split('T')[0];
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                const offset = yesterday.getTimezoneOffset();
+                const localYesterday = new Date(yesterday.getTime() - (offset * 60 * 1000));
+                initialDate = localYesterday.toISOString().split('T')[0];
             }
             
             gameDatePicker.value = initialDate;
