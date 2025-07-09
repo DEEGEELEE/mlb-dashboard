@@ -39,7 +39,7 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        .download-btn:disabled, #refresh-btn:disabled {
+        #download-all-btn:disabled, #refresh-btn:disabled {
             cursor: not-allowed;
             background-color: #374151; /* bg-gray-700 */
             opacity: 0.7;
@@ -54,7 +54,7 @@
             <p class="text-lg text-gray-400 mt-2">Browse daily MLB schedules and box scores.</p>
         </header>
 
-        <div class="max-w-3xl mx-auto mb-8 flex flex-col sm:flex-row gap-2 items-center justify-center">
+        <div class="max-w-2xl mx-auto mb-8 flex flex-col sm:flex-row gap-2 items-center justify-center">
             <!-- Refresh Button -->
             <div class="w-full sm:w-auto sm:pt-7">
                  <button id="refresh-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm" title="Refresh data for selected date">
@@ -66,22 +66,14 @@
                 <label for="game-date-picker" class="block text-sm font-medium text-gray-300 mb-2 text-center sm:text-left">Select Date:</label>
                 <input type="date" id="game-date-picker" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
             </div>
-            <!-- Download Buttons -->
-            <div class="w-full sm:w-auto sm:pt-7 flex flex-col sm:flex-row gap-2">
-                 <button id="download-boxscores-btn" class="download-btn w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm">
-                    <span class="download-btn-text">
-                        <i data-lucide="download" class="inline-block w-4 h-4 mr-2"></i>Boxscores
+            <!-- Download Button -->
+            <div class="w-full sm:w-auto sm:pt-7">
+                 <button id="download-all-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm">
+                    <span id="download-btn-text">
+                        <i data-lucide="download" class="inline-block w-4 h-4 mr-2"></i>
+                        Download All (XLSX)
                     </span>
-                    <span class="download-btn-loader hidden">
-                        <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5 mr-2 inline-block"></div>
-                        Fetching...
-                    </span>
-                </button>
-                 <button id="download-linescores-btn" class="download-btn w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm">
-                    <span class="download-btn-text">
-                        <i data-lucide="download" class="inline-block w-4 h-4 mr-2"></i>Linescores
-                    </span>
-                     <span class="download-btn-loader hidden">
+                    <span id="download-btn-loader" class="hidden">
                         <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5 mr-2 inline-block"></div>
                         Fetching...
                     </span>
@@ -131,8 +123,9 @@
         const gamesGrid = document.getElementById('games-grid');
         const loader = document.getElementById('loader');
         const noGamesMessage = document.getElementById('no-games-message');
-        const downloadBoxscoresBtn = document.getElementById('download-boxscores-btn');
-        const downloadLinescoresBtn = document.getElementById('download-linescores-btn');
+        const downloadAllBtn = document.getElementById('download-all-btn');
+        const downloadBtnText = document.getElementById('download-btn-text');
+        const downloadBtnLoader = document.getElementById('download-btn-loader');
         const refreshBtn = document.getElementById('refresh-btn');
         
         const boxscoreModal = document.getElementById('boxscore-modal');
@@ -159,7 +152,7 @@
             currentGames = [];
             noGamesMessage.classList.add('hidden');
             loader.classList.remove('hidden');
-            [downloadBoxscoresBtn, downloadLinescoresBtn, refreshBtn].forEach(btn => btn.disabled = true);
+            [downloadAllBtn, refreshBtn].forEach(btn => btn.disabled = true);
 
             try {
                 const response = await fetch(`${API_BASE_URL}/schedule?sportId=1&date=${dateString}`);
@@ -171,8 +164,7 @@
                 } else {
                     currentGames = data.dates[0].games;
                     renderGames(currentGames);
-                    downloadBoxscoresBtn.disabled = false;
-                    downloadLinescoresBtn.disabled = false;
+                    downloadAllBtn.disabled = false;
                 }
             } catch (error) {
                 console.error("Error fetching schedule:", error);
@@ -303,21 +295,18 @@
         }
         
         /**
-         * Fetches all game data for the selected date.
-         * @param {HTMLElement} btn - The button that was clicked.
-         * @returns {Promise<Array|null>} A promise that resolves to an array of game data or null if an error occurs.
+         * Fetches all data for a day and triggers an XLSX download
          */
-        async function fetchAllGameData(btn) {
-             if (currentGames.length === 0) {
+        async function downloadAllGamesXLSX() {
+            if (currentGames.length === 0) {
                 alert("No games to download for the selected date.");
-                return null;
+                return;
             }
-            const textSpan = btn.querySelector('.download-btn-text');
-            const loaderSpan = btn.querySelector('.download-btn-loader');
 
-            [downloadBoxscoresBtn, downloadLinescoresBtn, refreshBtn].forEach(b => b.disabled = true);
-            textSpan.classList.add('hidden');
-            loaderSpan.classList.remove('hidden');
+            downloadAllBtn.disabled = true;
+            refreshBtn.disabled = true;
+            downloadBtnText.classList.add('hidden');
+            downloadBtnLoader.classList.remove('hidden');
 
             try {
                 const gameDataPromises = currentGames.map(game => {
@@ -325,15 +314,35 @@
                     const linescorePromise = fetch(`${API_BASE_URL}/game/${game.gamePk}/linescore`).then(res => res.json());
                     return Promise.all([boxscorePromise, linescorePromise]);
                 });
-                return await Promise.all(gameDataPromises);
+
+                const allGamesData = await Promise.all(gameDataPromises);
+
+                const wb = XLSX.utils.book_new();
+                const allSheetData = [];
+                
+                const maxInnings = Math.max(...allGamesData.map(([, ls]) => ls.innings.length));
+
+                allGamesData.forEach(([boxscore, linescore]) => {
+                    allSheetData.push(...convertGameDataToArray(boxscore, linescore, maxInnings));
+                    allSheetData.push([]); // Blank row between games
+                    allSheetData.push([]); // Blank row between games
+                });
+                
+                const ws = XLSX.utils.aoa_to_sheet(allSheetData);
+                XLSX.utils.book_append_sheet(wb, ws, "Game Data");
+
+                const date = gameDatePicker.value;
+                const filename = `mlb_games_${date}.xlsx`;
+                XLSX.writeFile(wb, filename);
+
             } catch (error) {
-                 console.error("Error downloading all game data:", error);
+                console.error("Error downloading all game data:", error);
                 alert("Failed to download all game data. Please check the console for errors.");
-                return null;
             } finally {
-                [downloadBoxscoresBtn, downloadLinescoresBtn, refreshBtn].forEach(b => b.disabled = false);
-                textSpan.classList.remove('hidden');
-                loaderSpan.classList.add('hidden');
+                downloadAllBtn.disabled = false;
+                refreshBtn.disabled = false;
+                downloadBtnText.classList.remove('hidden');
+                downloadBtnLoader.classList.add('hidden');
             }
         }
 
@@ -352,16 +361,55 @@
         }
 
         /**
-         * Converts a single game's boxscore data into an array of arrays for XLSX.
+         * Formats an IP decimal string (e.g., "6.2") into a fractional string (e.g., "6 2/3").
+         * @param {string} ipDecimalString - The IP string from the API.
+         * @returns {string} The IP string formatted with fractions.
+         */
+        function formatIp(ipDecimalString) {
+            if (!ipDecimalString || ipDecimalString === '0.0') return '0';
+            const parts = ipDecimalString.split('.');
+            const innings = parts[0];
+            const outs = parts[1];
+
+            if (!outs || outs === '0') {
+                return innings;
+            }
+
+            const fraction = outs === '1' ? '1/3' : '2/3';
+
+            if (innings === '0') {
+                return fraction;
+            }
+
+            return `${innings} ${fraction}`;
+        }
+
+        /**
+         * Converts a single game's data into an array of arrays for XLSX.
          * @param {object} boxscore - The boxscore data for a game.
+         * @param {object} linescore - The linescore data for a game.
+         * @param {number} maxInnings - The maximum number of innings for the day for padding.
          * @returns {Array<Array<string>>} An array of rows for one game.
          */
-        function convertGameDataToArray(boxscore) {
+        function convertGameDataToArray(boxscore, linescore, maxInnings) {
             const { away, home } = boxscore.teams;
             let data = [];
 
             data.push([`Game: ${away.team.name} @ ${home.team.name}`]);
             data.push([`Date: ${gameDatePicker.value}`]);
+            data.push([]);
+
+            // Linescore
+            const inningHeaders = Array.from({ length: maxInnings }, (_, i) => i + 1);
+            data.push(['Team', ...inningHeaders, 'R', 'H', 'E']);
+
+            const awayInningScores = linescore.innings.map(i => i.away.runs ?? 0);
+            const homeInningScores = linescore.innings.map(i => i.home.runs ?? 0);
+            while (awayInningScores.length < maxInnings) awayInningScores.push('');
+            while (homeInningScores.length < maxInnings) homeInningScores.push('');
+
+            data.push([away.team.name, ...awayInningScores, linescore.teams.away.runs, linescore.teams.away.hits, linescore.teams.away.errors]);
+            data.push([home.team.name, ...homeInningScores, linescore.teams.home.runs, linescore.teams.home.hits, linescore.teams.home.errors]);
             data.push([]);
 
             const processTeam = (teamData) => {
@@ -395,7 +443,9 @@
 
                 // Pitching
                 data.push([`${teamData.team.name} - Pitching`]);
-                data.push(['Player', 'Position', 'IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA']);
+                const pitchingHeader = ['Player', 'Position', 'IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA'];
+                const totalHeader = ['', 'Total IP', 'Total H', 'Total R', 'Total ER', 'Total BB', 'Total SO', 'Total HR', 'Total ERA'];
+                data.push([...pitchingHeader, ...totalHeader]);
                 
                 let totalInningsPitched = 0, totalOuts = 0, totalHits = 0, totalRuns = 0;
                 let totalEarnedRuns = 0, totalBaseOnBalls = 0, totalStrikeOuts = 0, totalHomeRuns = 0;
@@ -404,17 +454,9 @@
                     const p = teamData.players[`ID${id}`];
                     if (p && p.stats.pitching) {
                         const s = p.stats.pitching;
-                        const normalizedName = normalizeString(p.person.fullName);
-                        let ipString = s.inningsPitched ?? '0.0';
-                        if (ipString.endsWith('.0')) {
-                            ipString = ipString.slice(0, -2);
-                        }
-                        data.push([normalizedName, p.position.abbreviation, ipString, s.hits ?? 0, s.runs ?? 0, s.earnedRuns ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.homeRuns ?? 0, p.seasonStats.pitching.era ?? 'N/A']);
-                        
                         const ipParts = (s.inningsPitched ?? '0.0').toString().split('.');
                         totalInningsPitched += parseInt(ipParts[0] || 0, 10);
                         totalOuts += parseInt(ipParts[1] || 0, 10);
-
                         totalHits += s.hits ?? 0;
                         totalRuns += s.runs ?? 0;
                         totalEarnedRuns += s.earnedRuns ?? 0;
@@ -426,12 +468,36 @@
 
                 totalInningsPitched += Math.floor(totalOuts / 3);
                 totalOuts = totalOuts % 3;
-                const totalIpString = totalOuts === 0 ? totalInningsPitched.toString() : `${totalInningsPitched}.${totalOuts}`;
-                
+                const totalIpDecimalString = `${totalInningsPitched}.${totalOuts}`;
+                const totalIpString = formatIp(totalIpDecimalString);
                 const totalIpForEra = totalInningsPitched + totalOuts / 3;
                 const totalEra = totalIpForEra > 0 ? ((totalEarnedRuns * 9) / totalIpForEra).toFixed(2) : '0.00';
 
-                data.push(['Total', '', totalIpString, totalHits, totalRuns, totalEarnedRuns, totalBaseOnBalls, totalStrikeOuts, totalHomeRuns, totalEra]);
+                teamData.pitchers.forEach((id, index) => {
+                    const p = teamData.players[`ID${id}`];
+                     if (p && p.stats.pitching) {
+                        const s = p.stats.pitching;
+                        const normalizedName = normalizeString(p.person.fullName);
+                        const ipString = formatIp(s.inningsPitched ?? '0.0');
+                        
+                        const pitcherRow = [normalizedName, p.position.abbreviation, ipString, s.hits ?? 0, s.runs ?? 0, s.earnedRuns ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.homeRuns ?? 0, p.seasonStats.pitching.era ?? 'N/A'];
+                        
+                        if (index === 0) {
+                            pitcherRow.push(
+                                '', // Empty cell for spacing
+                                totalIpString, 
+                                totalHits, 
+                                totalRuns, 
+                                totalEarnedRuns, 
+                                totalBaseOnBalls, 
+                                totalStrikeOuts, 
+                                totalHomeRuns, 
+                                totalEra
+                            );
+                        }
+                        data.push(pitcherRow);
+                    }
+                });
                 data.push([]);
             };
 
@@ -469,72 +535,7 @@
 
         closeModalBtn.addEventListener('click', closeModal);
         
-        downloadBoxscoresBtn.addEventListener('click', async (e) => {
-            const allGamesData = await fetchAllGameData(e.currentTarget);
-            if (!allGamesData) return;
-
-            const boxscoreData = [];
-            allGamesData.forEach(([boxscore]) => {
-                boxscoreData.push(...convertGameDataToArray(boxscore));
-                boxscoreData.push([]);
-                boxscoreData.push([]);
-            });
-
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.aoa_to_sheet(boxscoreData);
-            XLSX.utils.book_append_sheet(wb, ws, "Boxscores");
-            
-            const date = gameDatePicker.value;
-            const filename = `mlb_boxscores_${date}.xlsx`;
-            XLSX.writeFile(wb, filename);
-        });
-
-        downloadLinescoresBtn.addEventListener('click', async (e) => {
-            const allGamesData = await fetchAllGameData(e.currentTarget);
-            if (!allGamesData) return;
-
-            const linescoreData = [];
-            const maxInnings = Math.max(...allGamesData.map(([, ls]) => ls.innings.length));
-            const inningHeaders = Array.from({ length: maxInnings }, (_, i) => i + 1);
-            linescoreData.push(['Date', 'Team', ...inningHeaders, 'R', 'H', 'E']);
-
-            allGamesData.forEach(([boxscore, linescore]) => {
-                const awayTeam = boxscore.teams.away;
-                const homeTeam = boxscore.teams.home;
-                
-                const awayInningScores = linescore.innings.map(i => i.away.runs ?? 0);
-                const homeInningScores = linescore.innings.map(i => i.home.runs ?? 0);
-                
-                while (awayInningScores.length < maxInnings) awayInningScores.push('');
-                while (homeInningScores.length < maxInnings) homeInningScores.push('');
-
-                linescoreData.push([
-                    gameDatePicker.value,
-                    awayTeam.team.name,
-                    ...awayInningScores,
-                    linescore.teams.away.runs,
-                    linescore.teams.away.hits,
-                    linescore.teams.away.errors
-                ]);
-                 linescoreData.push([
-                    '',
-                    homeTeam.team.name,
-                    ...homeInningScores,
-                    linescore.teams.home.runs,
-                    linescore.teams.home.hits,
-                    linescore.teams.home.errors
-                ]);
-                linescoreData.push([]); // Blank row for separation
-            });
-
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.aoa_to_sheet(linescoreData);
-            XLSX.utils.book_append_sheet(wb, ws, "Linescores");
-
-            const date = gameDatePicker.value;
-            const filename = `mlb_linescores_${date}.xlsx`;
-            XLSX.writeFile(wb, filename);
-        });
+        downloadAllBtn.addEventListener('click', downloadAllGamesXLSX);
         
         boxscoreModal.addEventListener('click', (e) => {
             if (e.target === boxscoreModal) closeModal();
