@@ -690,20 +690,11 @@
 
         // --- Initialization ---
         function init() {
-            const savedDate = localStorage.getItem('mlbDashboardSelectedDate');
-            let initialDate;
-
-            if (savedDate) {
-                initialDate = savedDate;
-            } else {
-                // Default to yesterday's date to ensure there are completed games
-                const today = new Date();
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
-                const offset = yesterday.getTimezoneOffset();
-                const localYesterday = new Date(yesterday.getTime() - (offset * 60 * 1000));
-                initialDate = localYesterday.toISOString().split('T')[0];
-            }
+            // Always default to today's date when the page loads.
+            const today = new Date();
+            const offset = today.getTimezoneOffset();
+            const localToday = new Date(today.getTime() - (offset * 60 * 1000));
+            const initialDate = localToday.toISOString().split('T')[0];
             
             gameDatePicker.value = initialDate;
             fetchAndDisplayGames(initialDate);
