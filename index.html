@@ -411,7 +411,7 @@
                 }
 
                 const games = data.dates[0].games;
-                const headers = ['Time (ET)', 'Home Team', 'Away Team', 'Home Pitcher', 'Away Pitcher'];
+                const headers = ['Date', 'Time (KST)', 'Home Team', 'Away Team', 'Home Pitcher', 'Away Pitcher'];
                 let tableRows = '';
 
                 games.forEach(game => {
@@ -419,11 +419,17 @@
                     const homeTeam = game.teams.home.team.name;
                     const awayPitcher = normalizeString(game.teams.away.probablePitcher?.fullName || 'TBD');
                     const homePitcher = normalizeString(game.teams.home.probablePitcher?.fullName || 'TBD');
-                    const gameTime = new Date(game.gameDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' });
+                    const gameTimeKST = new Date(game.gameDate).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false,
+                        timeZone: 'Asia/Seoul'
+                    });
 
                     tableRows += `
                         <tr>
-                            <td>${gameTime}</td>
+                            <td>${displayDate}</td>
+                            <td>${gameTimeKST}</td>
                             <td class="whitespace-nowrap text-left">${homeTeam}</td>
                             <td class="whitespace-nowrap text-left">${awayTeam}</td>
                             <td>${homePitcher}</td>
