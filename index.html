@@ -395,8 +395,7 @@
         async function showProbablePitchers() {
             openModal();
             const selectedDate = gameDatePicker.value;
-            const displayDate = new Date(selectedDate + 'T00:00:00').toLocaleDateString();
-            modalTitle.textContent = `Probable Pitchers for ${displayDate}`;
+            modalTitle.textContent = `Probable Pitchers for ${selectedDate}`;
             modalBody.innerHTML = '';
             modalLoader.classList.remove('hidden');
 
@@ -406,7 +405,7 @@
                 const data = await response.json();
 
                 if (data.totalGames === 0) {
-                    modalBody.innerHTML = `<p class="text-center text-gray-400">No games scheduled for ${displayDate}.</p>`;
+                    modalBody.innerHTML = `<p class="text-center text-gray-400">No games scheduled for ${selectedDate}.</p>`;
                     return;
                 }
 
@@ -428,7 +427,7 @@
 
                     tableRows += `
                         <tr>
-                            <td>${displayDate}</td>
+                            <td>${selectedDate}</td>
                             <td>${gameTimeKST}</td>
                             <td class="whitespace-nowrap text-left">${homeTeam}</td>
                             <td class="whitespace-nowrap text-left">${awayTeam}</td>
