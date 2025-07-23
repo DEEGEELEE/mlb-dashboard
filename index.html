@@ -239,10 +239,10 @@
                     const loserName = normalizeString(game.decisions?.loser?.fullName || 'N/A');
                     const saveName = game.decisions?.save ? normalizeString(game.decisions.save.fullName) : '';
                     decisionHtml = `
-                    <div class="border-t border-gray-700 mt-4 pt-2 text-xs text-gray-400">
-                        <p>W: ${winnerName}</p>
-                        <p>L: ${loserName}</p>
-                        ${saveName ? `<p>S: ${saveName}</p>` : ''}
+                    <div class="border-t border-gray-700 mt-4 pt-2 text-xs">
+                        <p class="text-green-400">W: ${winnerName}</p>
+                        <p class="text-gray-400">L: ${loserName}</p>
+                        ${saveName ? `<p class="text-yellow-400">S: ${saveName}</p>` : ''}
                     </div>
                     `;
                 } else {
@@ -447,103 +447,12 @@
             };
 
             modalBody.innerHTML = `
-                <div class="mb-6">
-                    <button id="recap-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm">
-                        ✨ Generate Game Recap
-                    </button>
-                </div>
-                <div id="recap-container" class="p-4 bg-gray-800 rounded-lg mb-6 hidden">
-                    <div id="recap-loader" class="text-center hidden"><div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-6 w-6 mx-auto"></div></div>
-                    <p id="recap-content" class="text-gray-300 whitespace-pre-wrap"></p>
-                </div>
                 ${createPlayerTable(away, 'batting')}
                 ${createPlayerTable(home, 'batting')}
                 ${createPlayerTable(away, 'pitching')}
                 ${createPlayerTable(home, 'pitching')}
             `;
-            
-            document.getElementById('recap-btn').addEventListener('click', () => generateGameRecap(data, decisions));
         }
-
-        async function generateGameRecap(boxscoreData, decisions) {
-            const recapContainer = document.getElementById('recap-container');
-            const recapLoader = document.getElementById('recap-loader');
-            const recapContent = document.getElementById('recap-content');
-            
-            recapContainer.classList.remove('hidden');
-            recapContent.textContent = '';
-            recapLoader.classList.remove('hidden');
-
-            const { away, home } = boxscoreData.teams;
-            
-            const getKeyPerformers = (teamData) => {
-                let performers = [];
-                const pitcherIds = new Set(teamData.pitchers.map(id => `ID${id}`));
-                teamData.batters.forEach(id => {
-                    const p = teamData.players[`ID${id}`];
-                    if (p && p.stats.batting && !pitcherIds.has(`ID${p.person.id}`)) {
-                        const s = p.stats.batting;
-                        if (s.homeRuns > 0 || s.rbi > 1) {
-                            let statLine = `${s.hits}-${s.atBats}`;
-                            if (s.homeRuns > 0) statLine += `, ${s.homeRuns} HR`;
-                            if (s.rbi > 0) statLine += `, ${s.rbi} RBI`;
-                            if (s.runs > 0) statLine += `, ${s.runs} R`;
-                            performers.push(`  - ${p.person.fullName}: ${statLine}`);
-                        }
-                    }
-                });
-                return performers;
-            };
-
-            const awayPerformers = getKeyPerformers(away);
-            const homePerformers = getKeyPerformers(home);
-
-            const prompt = `You are a sports journalist. Write a brief, engaging game recap for a baseball game based on the following data. The recap should be about 3-4 sentences long.
-
-Data:
-- Matchup: ${away.team.name} at ${home.team.name}
-- Final Score: ${away.teamStats.batting.runs}, ${home.team.name} ${home.teamStats.batting.runs}
-- Winning Pitcher: ${decisions?.winner?.fullName || 'N/A'}
-- Losing Pitcher: ${decisions?.loser?.fullName || 'N/A'}
-- Save: ${decisions?.save?.fullName || 'None'}
-- Key Performers:
-${awayPerformers.join('\n')}
-${homePerformers.join('\n')}
-`;
-
-            try {
-                let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-                const payload = { contents: chatHistory };
-                const apiKey = "" 
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`API Error: ${response.statusText}`);
-                }
-
-                const result = await response.json();
-                
-                if (result.candidates && result.candidates.length > 0 &&
-                    result.candidates[0].content && result.candidates[0].content.parts &&
-                    result.candidates[0].content.parts.length > 0) {
-                    const text = result.candidates[0].content.parts[0].text;
-                    recapContent.textContent = text;
-                } else {
-                   recapContent.textContent = "Could not generate a recap for this game.";
-                }
-            } catch (error) {
-                console.error("Gemini API error:", error);
-                recapContent.textContent = "Error generating recap. Please try again.";
-            } finally {
-                recapLoader.classList.add('hidden');
-            }
-        }
-
 
         async function showProbablePitchers() {
             openModal();
