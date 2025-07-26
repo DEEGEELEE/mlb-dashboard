@@ -60,16 +60,13 @@
         </header>
 
         <div class="max-w-4xl mx-auto mb-8 flex flex-col sm:flex-row gap-4 items-end justify-center">
-            <!-- Refresh Button -->
-            <div class="w-full sm:w-auto">
-                 <button id="refresh-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm" title="Refresh data for selected date">
-                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                </button>
-            </div>
             <!-- Date Navigation -->
             <div class="w-full sm:w-auto flex-grow">
                 <label for="game-date-picker" class="block text-sm font-medium text-gray-300 mb-2 text-center sm:text-left">Select Date:</label>
                 <div class="flex items-center gap-2">
+                    <button id="refresh-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold p-2.5 rounded-md flex items-center justify-center" title="Refresh data for selected date">
+                        <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+                    </button>
                     <button id="prev-day-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold p-2.5 rounded-md flex items-center justify-center" title="Previous Day">
                         <i data-lucide="chevron-left" class="w-5 h-5"></i>
                     </button>
@@ -175,7 +172,7 @@
             [downloadAllBtn, refreshBtn, probablePitchersBtn, prevDayBtn, nextDayBtn].forEach(btn => btn.disabled = true);
 
             try {
-                const response = await fetch(`${API_BASE_URL}/schedule?sportId=1&date=${dateString}&hydrate=decisions,probablePitcher(stats(type=season))`);
+                const response = await fetch(`${API_BASE_URL}/schedule?sportId=1&date=${dateString}&hydrate=decisions,probablePitcher(stats(type=season)),linescore`);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
 
@@ -220,6 +217,7 @@
                 const isPostponed = status === 'Postponed';
                 const isDoubleHeader = game.doubleHeader === 'Y' || game.doubleHeader === 'S';
                 const isResumed = !!game.resumedFrom;
+                const isInProgress = status === 'In Progress';
 
                 const awayWon = isFinal && (awayTeam.score > homeTeam.score);
                 const homeWon = isFinal && (homeTeam.score > awayTeam.score);
@@ -289,9 +287,14 @@
                      gameTypeIndicator = `<span class="text-xs font-bold text-yellow-400"> (Resumed)</span>`;
                 }
 
+                let statusDisplay = status;
+                if (isInProgress && game.linescore?.currentInningOrdinal) {
+                    statusDisplay = `${game.linescore.inningState} ${game.linescore.currentInningOrdinal}`;
+                }
+
                 gameCard.innerHTML = `
                     <div class="flex-grow">
-                        <p class="text-sm text-white mb-2">${status}${gameTypeIndicator} ${isPostponed ? '' : `- ${new Date(game.gameDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}</p>
+                        <p class="text-sm text-white mb-2">${statusDisplay}${gameTypeIndicator} ${isPostponed ? '' : `- ${new Date(game.gameDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}</p>
                         <div class="flex items-center justify-between mb-2 p-1 rounded-md ${awayWon ? 'border border-green-500' : 'border border-transparent'}">
                             <span class="font-semibold text-lg">${awayTeam.team.name}</span>
                             <span class="font-bold text-2xl">${isPostponed ? '-' : (awayTeam.score ?? 0)}</span>
