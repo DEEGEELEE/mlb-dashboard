@@ -165,7 +165,7 @@
             [downloadAllBtn, refreshBtn, probablePitchersBtn].forEach(btn => btn.disabled = true);
 
             try {
-                const response = await fetch(`${API_BASE_URL}/schedule?sportId=1&date=${dateString}&hydrate=decisions,probablePitcher(stats(type=season))`);
+                const response = await fetch(`${API_BASE_URL}/schedule?sportId=1&date=${dateString}&hydrate=decisions,probablePitcher(stats(type=season)),linescore`);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
 
@@ -210,6 +210,7 @@
                 const isPostponed = status === 'Postponed';
                 const isDoubleHeader = game.doubleHeader === 'Y' || game.doubleHeader === 'S';
                 const isResumed = !!game.resumedFrom;
+                const isInProgress = status === 'In Progress';
 
                 const awayWon = isFinal && (awayTeam.score > homeTeam.score);
                 const homeWon = isFinal && (homeTeam.score > awayTeam.score);
@@ -220,7 +221,7 @@
                 if (isPostponed) {
                     cardClasses += ' bg-red-900/40 border-2 border-red-600';
                 } else {
-                    cardClasses += ' cursor-pointer hover:ring-2 ring-blue-500';
+                    cardClasses += ' cursor-pointer hover:ring-2 ring-white';
                     gameCard.dataset.gamePk = game.gamePk;
                     if (isDoubleHeader || isResumed) {
                          cardClasses += ' border-2 border-yellow-500';
@@ -279,9 +280,14 @@
                      gameTypeIndicator = `<span class="text-xs font-bold text-yellow-400"> (Resumed)</span>`;
                 }
 
+                let statusDisplay = status;
+                if (isInProgress && game.linescore?.currentInningOrdinal) {
+                    statusDisplay = `${game.linescore.inningState} ${game.linescore.currentInningOrdinal}`;
+                }
+
                 gameCard.innerHTML = `
                     <div class="flex-grow">
-                        <p class="text-sm text-white mb-2">${status}${gameTypeIndicator} ${isPostponed ? '' : `- ${new Date(game.gameDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}</p>
+                        <p class="text-sm text-white mb-2">${statusDisplay}${gameTypeIndicator} ${isPostponed ? '' : `- ${new Date(game.gameDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}</p>
                         <div class="flex items-center justify-between mb-2 p-1 rounded-md ${awayWon ? 'border border-green-500' : 'border border-transparent'}">
                             <span class="font-semibold text-lg">${awayTeam.team.name}</span>
                             <span class="font-bold text-2xl">${isPostponed ? '-' : (awayTeam.score ?? 0)}</span>
@@ -386,22 +392,12 @@
                 
                 if (type === 'batting') {
                     const battingOrder = teamData.battingOrder.map(id => `ID${id}`);
-                    const allBattersInGame = new Set(teamData.batters.map(id => `ID${id}`));
-                    const subs = [...allBattersInGame].filter(id => !battingOrder.includes(id));
-                    const orderedPlayerIDs = [...battingOrder, ...subs];
-                    const pitcherIds = new Set(teamData.pitchers.map(id => `ID${id}`));
-
-                    orderedPlayerIDs.forEach((playerID) => {
+                    
+                    battingOrder.forEach((playerID, index) => {
                         const player = players[playerID];
-                        if (player && player.stats.batting && !pitcherIds.has(playerID)) {
+                        if (player && player.stats.batting) {
                             const stats = player.stats.batting;
-                            let namePrefix = '';
-                            const battingOrderIndex = battingOrder.indexOf(playerID);
-                            if (battingOrderIndex !== -1) {
-                                namePrefix = `${battingOrderIndex + 1}. `;
-                            } else {
-                                namePrefix = 'PH ';
-                            }
+                            const namePrefix = `${index + 1}. `;
                             tableRows += `
                                 <tr>
                                     <td class="whitespace-nowrap text-left">${namePrefix}${player.person.fullName} <span class="text-gray-400">${player.position.abbreviation}</span></td>
@@ -450,103 +446,12 @@
             };
 
             modalBody.innerHTML = `
-                <div class="mb-6">
-                    <button id="recap-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm">
-                        ✨ Generate Game Recap
-                    </button>
-                </div>
-                <div id="recap-container" class="p-4 bg-gray-800 rounded-lg mb-6 hidden">
-                    <div id="recap-loader" class="text-center hidden"><div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-6 w-6 mx-auto"></div></div>
-                    <p id="recap-content" class="text-gray-300 whitespace-pre-wrap"></p>
-                </div>
                 ${createPlayerTable(away, 'batting')}
                 ${createPlayerTable(home, 'batting')}
                 ${createPlayerTable(away, 'pitching')}
                 ${createPlayerTable(home, 'pitching')}
             `;
-            
-            document.getElementById('recap-btn').addEventListener('click', () => generateGameRecap(data, decisions));
         }
-
-        async function generateGameRecap(boxscoreData, decisions) {
-            const recapContainer = document.getElementById('recap-container');
-            const recapLoader = document.getElementById('recap-loader');
-            const recapContent = document.getElementById('recap-content');
-            
-            recapContainer.classList.remove('hidden');
-            recapContent.textContent = '';
-            recapLoader.classList.remove('hidden');
-
-            const { away, home } = boxscoreData.teams;
-            
-            const getKeyPerformers = (teamData) => {
-                let performers = [];
-                const pitcherIds = new Set(teamData.pitchers.map(id => `ID${id}`));
-                teamData.batters.forEach(id => {
-                    const p = teamData.players[`ID${id}`];
-                    if (p && p.stats.batting && !pitcherIds.has(`ID${p.person.id}`)) {
-                        const s = p.stats.batting;
-                        if (s.homeRuns > 0 || s.rbi > 1) {
-                            let statLine = `${s.hits}-${s.atBats}`;
-                            if (s.homeRuns > 0) statLine += `, ${s.homeRuns} HR`;
-                            if (s.rbi > 0) statLine += `, ${s.rbi} RBI`;
-                            if (s.runs > 0) statLine += `, ${s.runs} R`;
-                            performers.push(`  - ${p.person.fullName}: ${statLine}`);
-                        }
-                    }
-                });
-                return performers;
-            };
-
-            const awayPerformers = getKeyPerformers(away);
-            const homePerformers = getKeyPerformers(home);
-
-            const prompt = `You are a sports journalist. Write a brief, engaging game recap for a baseball game based on the following data. The recap should be about 3-4 sentences long.
-
-Data:
-- Matchup: ${away.team.name} at ${home.team.name}
-- Final Score: ${away.teamStats.batting.runs}, ${home.team.name} ${home.teamStats.batting.runs}
-- Winning Pitcher: ${decisions?.winner?.fullName || 'N/A'}
-- Losing Pitcher: ${decisions?.loser?.fullName || 'N/A'}
-- Save: ${decisions?.save?.fullName || 'None'}
-- Key Performers:
-${awayPerformers.join('\n')}
-${homePerformers.join('\n')}
-`;
-
-            try {
-                let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-                const payload = { contents: chatHistory };
-                const apiKey = "" 
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`API Error: ${response.statusText}`);
-                }
-
-                const result = await response.json();
-                
-                if (result.candidates && result.candidates.length > 0 &&
-                    result.candidates[0].content && result.candidates[0].content.parts &&
-                    result.candidates[0].content.parts.length > 0) {
-                    const text = result.candidates[0].content.parts[0].text;
-                    recapContent.textContent = text;
-                } else {
-                   recapContent.textContent = "Could not generate a recap for this game.";
-                }
-            } catch (error) {
-                console.error("Gemini API error:", error);
-                recapContent.textContent = "Error generating recap. Please try again.";
-            } finally {
-                recapLoader.classList.add('hidden');
-            }
-        }
-
 
         async function showProbablePitchers() {
             openModal();
@@ -731,28 +636,18 @@ ${homePerformers.join('\n')}
             data.push([]);
 
             const processTeam = (teamData) => {
-                const pitcherIds = new Set(teamData.pitchers.map(id => `ID${id}`));
                 const battingOrder = teamData.battingOrder.map(id => `ID${id}`);
-                const allBattersInGame = new Set(teamData.batters.map(id => `ID${id}`));
-                const subs = [...allBattersInGame].filter(id => !battingOrder.includes(id));
-                const orderedBatters = [...battingOrder, ...subs];
 
                 // Batting
                 data.push([`${teamData.team.name} - Batting`]);
                 data.push(['Player', 'Position', 'AB', 'R', 'H', 'HR', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS']);
                 
-                orderedBatters.forEach((id) => {
+                battingOrder.forEach((id, index) => {
                     const p = teamData.players[id];
-                    if (p && p.stats.batting && !pitcherIds.has(id)) {
+                    if (p && p.stats.batting) {
                         const s = p.stats.batting;
                         const normalizedName = normalizeString(p.person.fullName);
-                        let namePrefix = '';
-                        const battingOrderIndex = battingOrder.indexOf(id);
-                        if (battingOrderIndex !== -1) {
-                            namePrefix = `${battingOrderIndex + 1}. `;
-                        } else {
-                            namePrefix = 'PH ';
-                        }
+                        const namePrefix = `${index + 1}. `;
                         const playerNameCell = `${namePrefix}${normalizedName}`;
                         data.push([playerNameCell, p.position.abbreviation, s.atBats ?? 0, s.runs ?? 0, s.hits ?? 0, s.homeRuns ?? 0, s.rbi ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.leftOnBase ?? 0, p.seasonStats.batting.avg ?? 'N/A', p.seasonStats.batting.ops ?? 'N/A']);
                     }
