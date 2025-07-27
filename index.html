@@ -200,16 +200,16 @@
             gamesGrid.innerHTML = '';
 
             const sortedGames = [...games].sort((a, b) => {
-                const aIsPostponed = a.status.detailedState === 'Postponed';
-                const bIsPostponed = b.status.detailedState === 'Postponed';
                 const aInProgress = a.status.detailedState === 'In Progress';
                 const bInProgress = b.status.detailedState === 'In Progress';
-
-                if (aIsPostponed && !bIsPostponed) return -1;
-                if (!aIsPostponed && bIsPostponed) return 1;
+                const aIsPostponed = a.status.detailedState === 'Postponed';
+                const bIsPostponed = b.status.detailedState === 'Postponed';
 
                 if (aInProgress && !bInProgress) return -1;
                 if (!aInProgress && bInProgress) return 1;
+                
+                if (aIsPostponed && !bIsPostponed) return -1;
+                if (!aIsPostponed && bIsPostponed) return 1;
                 
                 return new Date(a.gameDate) - new Date(b.gameDate);
             });
@@ -293,13 +293,15 @@
                 }
 
                 let statusDisplay = status;
+                let statusColor = 'text-white';
                 if (isInProgress && game.linescore?.currentInningOrdinal) {
                     statusDisplay = `${game.linescore.inningState} ${game.linescore.currentInningOrdinal}`;
+                    statusColor = 'text-green-400';
                 }
 
                 gameCard.innerHTML = `
                     <div class="flex-grow">
-                        <p class="text-sm text-white mb-2">${statusDisplay}${gameTypeIndicator} ${isPostponed ? '' : `- ${new Date(game.gameDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}</p>
+                        <p class="text-sm ${statusColor} mb-2">${statusDisplay}${gameTypeIndicator} ${isPostponed ? '' : `- ${new Date(game.gameDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}</p>
                         <div class="flex items-center justify-between mb-2 p-1 rounded-md ${awayWon ? 'border border-green-500' : 'border border-transparent'}">
                             <span class="font-semibold text-lg">${awayTeam.team.name}</span>
                             <span class="font-bold text-2xl">${isPostponed ? '-' : (awayTeam.score ?? 0)}</span>
