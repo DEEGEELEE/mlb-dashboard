@@ -202,9 +202,14 @@
             const sortedGames = [...games].sort((a, b) => {
                 const aIsPostponed = a.status.detailedState === 'Postponed';
                 const bIsPostponed = b.status.detailedState === 'Postponed';
+                const aInProgress = a.status.detailedState === 'In Progress';
+                const bInProgress = b.status.detailedState === 'In Progress';
 
                 if (aIsPostponed && !bIsPostponed) return -1;
                 if (!aIsPostponed && bIsPostponed) return 1;
+
+                if (aInProgress && !bInProgress) return -1;
+                if (!aInProgress && bInProgress) return 1;
                 
                 return new Date(a.gameDate) - new Date(b.gameDate);
             });
