@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Library for creating Excel files -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <style>
         body {
@@ -49,6 +48,15 @@
             cursor: pointer;
             filter: invert(1);
         }
+        
+        /* Hide scrollbar for mini linescore */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -60,7 +68,6 @@
         </header>
 
         <div class="max-w-4xl mx-auto mb-8 flex flex-col sm:flex-row gap-4 items-end justify-center">
-            <!-- Date Navigation -->
             <div class="w-full sm:w-auto flex-grow">
                 <label for="game-date-picker" class="block text-sm font-medium text-gray-300 mb-2 text-center sm:text-left">Select Date:</label>
                 <div class="flex items-center gap-2">
@@ -76,7 +83,6 @@
                     </button>
                 </div>
             </div>
-            <!-- Action Buttons -->
             <div class="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
                  <button id="download-all-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm">
                     <span id="download-btn-text">
@@ -96,8 +102,7 @@
         </div>
 
         <main id="games-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Game cards will be injected here -->
-        </main>
+            </main>
         
         <div id="loader" class="text-center py-12 hidden">
             <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mx-auto"></div>
@@ -111,7 +116,6 @@
 
     </div>
 
-    <!-- Main Modal -->
     <div id="main-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
         <div id="modal-content" class="bg-gray-900 rounded-lg shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col modal opacity-0 transform scale-95">
             <div class="p-4 border-b border-gray-700 flex justify-between items-center flex-shrink-0">
@@ -121,8 +125,7 @@
                 </button>
             </div>
             <div id="modal-body" class="p-2 md:p-4 lg:p-6 overflow-y-auto">
-                <!-- Modal content will be injected here -->
-            </div>
+                </div>
              <div id="modal-loader" class="text-center py-12 hidden">
                 <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mx-auto"></div>
                 <p class="mt-4 text-gray-400">Fetching data...</p>
@@ -262,25 +265,10 @@
                     </div>
                     `;
                 } else {
-                    const formatPitcherInfo = (pitcher) => {
-                        if (!pitcher) return 'TBD';
-                        const name = normalizeString(pitcher.fullName);
-                        let statsString = '';
-                        const seasonStats = pitcher.stats?.find(s => s.type?.displayName === 'season' && s.group?.displayName === 'pitching');
-                        if (seasonStats?.stat) {
-                            const { wins = 0, losses = 0, era = '0.00' } = seasonStats.stat;
-                            statsString = ` (${wins}-${losses}, ${era})`;
-                        }
-                        return `${name}${statsString}`;
-                    };
-
-                    const awayPitcherInfo = formatPitcherInfo(game.teams.away.probablePitcher);
-                    const homePitcherInfo = formatPitcherInfo(game.teams.home.probablePitcher);
-
-                    decisionHtml = `
+                     decisionHtml = `
                     <div class="border-t border-gray-700 mt-4 pt-2 text-xs text-gray-400">
-                        <p>A: ${awayPitcherInfo}</p>
-                        <p>H: ${homePitcherInfo}</p>
+                        <p id="away-pitcher-${game.gamePk}">A: ${normalizeString(game.teams.away.probablePitcher?.fullName || 'TBD')}</p>
+                        <p id="home-pitcher-${game.gamePk}">H: ${normalizeString(game.teams.home.probablePitcher?.fullName || 'TBD')}</p>
                     </div>
                     `;
                 }
@@ -293,10 +281,58 @@
                 }
 
                 let statusDisplay = status;
-                let statusColor = 'text-white';
+                let statusColor = 'text-gray-400';
                 if (isInProgress && game.linescore?.currentInningOrdinal) {
                     statusDisplay = `${game.linescore.inningState} ${game.linescore.currentInningOrdinal}`;
                     statusColor = 'text-green-400';
+                }
+
+                // Generate Mini Linescore inside the card
+                let miniLinescoreHtml = '';
+                if (game.linescore && game.linescore.innings && game.linescore.innings.length > 0 && !isPostponed) {
+                    const innings = game.linescore.innings;
+                    const totalInnings = Math.max(9, innings.length);
+
+                    let headerRow = `<th class="px-0.5 font-medium text-left w-8"></th>`;
+                    let awayRow = `<td class="px-0.5 font-medium text-left text-gray-400">AWY</td>`;
+                    let homeRow = `<td class="px-0.5 font-medium text-left text-gray-400">HOM</td>`;
+
+                    for (let i = 0; i < totalInnings; i++) {
+                        headerRow += `<th class="px-0.5 text-gray-500 font-normal w-4">${i + 1}</th>`;
+                        const inn = innings[i];
+                        let aR = '';
+                        let hR = '';
+
+                        if (inn) {
+                            aR = inn.away?.runs !== undefined ? inn.away.runs : '';
+                            hR = inn.home?.runs !== undefined ? inn.home.runs : '';
+                            
+                            // 9회말 홈팀 미타석(끝내기 등)의 경우 'X' 표시
+                            if (isFinal && inn.home?.runs === undefined && i >= 8 && aR !== '') {
+                                hR = 'X';
+                            }
+                        }
+
+                        awayRow += `<td class="px-0.5 text-gray-300">${aR}</td>`;
+                        homeRow += `<td class="px-0.5 text-gray-300">${hR}</td>`;
+                    }
+
+                    // Add R, H, E columns
+                    headerRow += `<th class="px-0.5 pl-1.5 text-white font-medium">R</th><th class="px-0.5 text-gray-400 font-medium">H</th><th class="px-0.5 text-gray-400 font-medium">E</th>`;
+                    awayRow += `<td class="px-0.5 pl-1.5 text-white font-bold">${game.linescore.teams.away?.runs ?? 0}</td><td class="px-0.5 text-gray-400">${game.linescore.teams.away?.hits ?? 0}</td><td class="px-0.5 text-gray-400">${game.linescore.teams.away?.errors ?? 0}</td>`;
+                    homeRow += `<td class="px-0.5 pl-1.5 text-white font-bold">${game.linescore.teams.home?.runs ?? 0}</td><td class="px-0.5 text-gray-400">${game.linescore.teams.home?.hits ?? 0}</td><td class="px-0.5 text-gray-400">${game.linescore.teams.home?.errors ?? 0}</td>`;
+
+                    miniLinescoreHtml = `
+                        <div class="mt-3 bg-gray-900/60 rounded p-1.5 overflow-x-auto no-scrollbar">
+                            <table class="w-full text-[10px] text-center border-collapse">
+                                <thead><tr>${headerRow}</tr></thead>
+                                <tbody>
+                                    <tr class="border-b border-gray-700/50">${awayRow}</tr>
+                                    <tr>${homeRow}</tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
                 }
 
                 gameCard.innerHTML = `
@@ -310,6 +346,7 @@
                             <span class="font-semibold text-lg">${homeTeam.team.name}</span>
                             <span class="font-bold text-2xl">${isPostponed ? '-' : (homeTeam.score ?? 0)}</span>
                         </div>
+                        ${miniLinescoreHtml}
                     </div>
                     ${decisionHtml}
                 `;
@@ -636,17 +673,37 @@
             data.push([`Date: ${gameDatePicker.value}`]);
             data.push([]);
 
-            // Linescore
-            const inningHeaders = Array.from({ length: maxInnings }, (_, i) => i + 1);
-            data.push(['Team', ...inningHeaders, 'R', 'H', 'E']);
+            // Linescore (Fixed 9 innings + OT)
+            data.push(['Team', 1, 2, 3, 4, 5, 6, 7, 8, 9, 'OT', 'R', 'H', 'E']);
 
-            const awayInningScores = linescore.innings.map(i => i.away.runs ?? 0);
-            const homeInningScores = linescore.innings.map(i => i.home.runs ?? 0);
-            while (awayInningScores.length < maxInnings) awayInningScores.push('');
-            while (homeInningScores.length < maxInnings) homeInningScores.push('');
+            let awayInningScores = [];
+            let homeInningScores = [];
+            let awayOtSum = 0;
+            let homeOtSum = 0;
+            let hasExtras = linescore.innings.length > 9;
 
-            data.push([away.team.name, ...awayInningScores, linescore.teams.away.runs, linescore.teams.away.hits, linescore.teams.away.errors]);
-            data.push([home.team.name, ...homeInningScores, linescore.teams.home.runs, linescore.teams.home.hits, linescore.teams.home.errors]);
+            linescore.innings.forEach((inn, i) => {
+                const awayRun = inn.away?.runs ?? 0;
+                const homeRun = inn.home?.runs ?? 0;
+
+                if (i < 9) {
+                    awayInningScores.push(awayRun);
+                    homeInningScores.push(homeRun);
+                } else {
+                    awayOtSum += awayRun;
+                    homeOtSum += homeRun;
+                }
+            });
+
+            // Pad to 9 innings if the game was shorter
+            while (awayInningScores.length < 9) awayInningScores.push('');
+            while (homeInningScores.length < 9) homeInningScores.push('');
+
+            const awayOTDisplay = hasExtras ? awayOtSum : '';
+            const homeOTDisplay = hasExtras ? homeOtSum : '';
+
+            data.push([away.team.name, ...awayInningScores, awayOTDisplay, linescore.teams.away.runs, linescore.teams.away.hits, linescore.teams.away.errors]);
+            data.push([home.team.name, ...homeInningScores, homeOTDisplay, linescore.teams.home.runs, linescore.teams.home.hits, linescore.teams.home.errors]);
             data.push([]);
 
             const processTeam = (teamData) => {
@@ -654,25 +711,23 @@
 
                 // Batting
                 data.push([`${teamData.team.name} - Batting`]);
-                data.push(['Player', 'Position', 'AB', 'R', 'H', 'HR', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS']);
+                data.push(['Order', 'Player', 'Position', 'AB', 'R', 'H', 'HR', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS']);
                 
                 battingOrder.forEach((id, index) => {
                     const p = teamData.players[id];
                     if (p && p.stats.batting) {
                         const s = p.stats.batting;
                         const normalizedName = normalizeString(p.person.fullName);
-                        const namePrefix = `${index + 1}. `;
-                        const playerNameCell = `${namePrefix}${normalizedName}`;
-                        data.push([playerNameCell, p.position.abbreviation, s.atBats ?? 0, s.runs ?? 0, s.hits ?? 0, s.homeRuns ?? 0, s.rbi ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.leftOnBase ?? 0, p.seasonStats.batting.avg ?? 'N/A', p.seasonStats.batting.ops ?? 'N/A']);
+                        data.push([index + 1, normalizedName, p.position.abbreviation, s.atBats ?? 0, s.runs ?? 0, s.hits ?? 0, s.homeRuns ?? 0, s.rbi ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.leftOnBase ?? 0, p.seasonStats.batting.avg ?? 'N/A', p.seasonStats.batting.ops ?? 'N/A']);
                     }
                 });
                 const teamBattingStats = teamData.teamStats.batting;
-                data.push(['Total', '', teamBattingStats.atBats, teamBattingStats.runs, teamBattingStats.hits, teamBattingStats.homeRuns, teamBattingStats.rbi, teamBattingStats.baseOnBalls, teamBattingStats.strikeOuts, teamBattingStats.leftOnBase, teamBattingStats.avg, teamBattingStats.ops]);
+                data.push(['', 'Total', '', teamBattingStats.atBats, teamBattingStats.runs, teamBattingStats.hits, teamBattingStats.homeRuns, teamBattingStats.rbi, teamBattingStats.baseOnBalls, teamBattingStats.strikeOuts, teamBattingStats.leftOnBase, teamBattingStats.avg, teamBattingStats.ops]);
                 data.push([]);
 
                 // Pitching
                 data.push([`${teamData.team.name} - Pitching`]);
-                const pitchingHeader = ['Player', 'Position', 'IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA', 'Result'];
+                const pitchingHeader = ['', 'Player', 'Position', 'IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA', 'Result'];
                 const totalHeader = ['', 'Total IP', 'Total H', 'Total R', 'Total ER', 'Total BB', 'Total SO', 'Total HR', 'Total ERA'];
                 data.push([...pitchingHeader, ...totalHeader]);
                 
@@ -683,35 +738,35 @@
                 teamData.pitchers.forEach((id, index) => {
                     const p = teamData.players[`ID${id}`];
                      if (p && p.stats.pitching) {
-                        const s = p.stats.pitching;
-                        const normalizedName = normalizeString(p.person.fullName);
-                        const ipString = formatIp(s.inningsPitched ?? '0.0');
-                        
-                        let result = '';
-                        if (decisions?.winner?.id === p.person.id) result = 'W';
-                        else if (decisions?.loser?.id === p.person.id) result = 'L';
-                        else if (decisions?.save?.id === p.person.id) result = 'S';
-                        else if (s.holds > 0) result = 'H';
-                        
-                        const position = index === 0 ? 'SP' : 'RP';
-                        
-                        const pitcherRow = [normalizedName, position, ipString, s.hits ?? 0, s.runs ?? 0, s.earnedRuns ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.homeRuns ?? 0, p.seasonStats.pitching.era ?? 'N/A', result];
-                        
-                        if (index === 0) {
-                            pitcherRow.push(
-                                '', // Empty cell for spacing
-                                totalIpString, 
-                                teamPitchingStats.hits, 
-                                teamPitchingStats.runs, 
-                                teamPitchingStats.earnedRuns, 
-                                teamPitchingStats.baseOnBalls, 
-                                teamPitchingStats.strikeOuts, 
-                                teamPitchingStats.homeRuns, 
-                                totalEra
-                            );
-                        }
-                        data.push(pitcherRow);
-                    }
+                         const s = p.stats.pitching;
+                         const normalizedName = normalizeString(p.person.fullName);
+                         const ipString = formatIp(s.inningsPitched ?? '0.0');
+                         
+                         let result = '';
+                         if (decisions?.winner?.id === p.person.id) result = 'W';
+                         else if (decisions?.loser?.id === p.person.id) result = 'L';
+                         else if (decisions?.save?.id === p.person.id) result = 'S';
+                         else if (s.holds > 0) result = 'H';
+                         
+                         const position = index === 0 ? 'SP' : 'RP';
+                         
+                         const pitcherRow = ['', normalizedName, position, ipString, s.hits ?? 0, s.runs ?? 0, s.earnedRuns ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.homeRuns ?? 0, p.seasonStats.pitching.era ?? 'N/A', result];
+                         
+                         if (index === 0) {
+                             pitcherRow.push(
+                                 '', // Empty cell for spacing
+                                 totalIpString, 
+                                 teamPitchingStats.hits, 
+                                 teamPitchingStats.runs, 
+                                 teamPitchingStats.earnedRuns, 
+                                 teamPitchingStats.baseOnBalls, 
+                                 teamPitchingStats.strikeOuts, 
+                                 teamPitchingStats.homeRuns, 
+                                 totalEra
+                             );
+                         }
+                         data.push(pitcherRow);
+                     }
                 });
                 data.push([]);
             };
