@@ -85,24 +85,24 @@
             </div>
             <div class="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
                  <button id="download-all-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm">
-                    <span id="download-btn-text">
-                        <i data-lucide="download" class="inline-block w-4 h-4 mr-2"></i>
-                        Download Boxscores
-                    </span>
-                    <span id="download-btn-loader" class="hidden">
-                        <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5 mr-2 inline-block"></div>
-                        Fetching...
-                    </span>
-                </button>
-                <button id="probable-pitchers-btn" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm">
-                    <i data-lucide="users" class="inline-block w-4 h-4 mr-2"></i>
-                    Probable Pitchers
-                </button>
+                     <span id="download-btn-text">
+                         <i data-lucide="download" class="inline-block w-4 h-4 mr-2"></i>
+                         Download Boxscores
+                     </span>
+                     <span id="download-btn-loader" class="hidden">
+                         <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5 mr-2 inline-block"></div>
+                         Fetching...
+                     </span>
+                 </button>
+                 <button id="probable-pitchers-btn" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm">
+                     <i data-lucide="users" class="inline-block w-4 h-4 mr-2"></i>
+                     Probable Pitchers
+                 </button>
             </div>
         </div>
 
         <main id="games-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            </main>
+        </main>
         
         <div id="loader" class="text-center py-12 hidden">
             <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mx-auto"></div>
@@ -124,15 +124,13 @@
                     <i data-lucide="x" class="w-8 h-8"></i>
                 </button>
             </div>
-            <div id="modal-body" class="p-2 md:p-4 lg:p-6 overflow-y-auto">
-                </div>
+            <div id="modal-body" class="p-2 md:p-4 lg:p-6 overflow-y-auto"></div>
              <div id="modal-loader" class="text-center py-12 hidden">
-                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mx-auto"></div>
-                <p class="mt-4 text-gray-400">Fetching data...</p>
-            </div>
+                 <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mx-auto"></div>
+                 <p class="mt-4 text-gray-400">Fetching data...</p>
+             </div>
         </div>
     </div>
-
 
     <script type="module">
         // --- DOM Elements ---
@@ -161,12 +159,44 @@
         // --- App State ---
         let currentGames = [];
 
+        // --- Helper Function: 선발타자 1~9번과 교체선수 분리 ---
+        function parseBatters(teamData) {
+            const starters = new Array(9).fill(null);
+            const subs = [];
+
+            if (teamData.batters && teamData.batters.length > 0) {
+                teamData.batters.forEach(id => {
+                    const p = teamData.players[`ID${id}`];
+                    if (p && p.battingOrder) {
+                        const orderNum = parseInt(p.battingOrder, 10);
+                        if (orderNum >= 100 && orderNum <= 999) {
+                            const spot = Math.floor(orderNum / 100);
+                            const isStarter = (orderNum % 100 === 0);
+                            
+                            if (isStarter) {
+                                starters[spot - 1] = p;
+                            } else {
+                                subs.push(p);
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // 데이터가 완전히 동기화되지 않은 경우를 위한 Fallback
+            const hasStarters = starters.some(p => p !== null);
+            if (!hasStarters && teamData.battingOrder) {
+                teamData.battingOrder.forEach((id, idx) => {
+                    if (idx < 9) {
+                        starters[idx] = teamData.players[`ID${id}`];
+                    }
+                });
+            }
+
+            return { starters, subs };
+        }
+
         // --- Functions ---
-        
-        /**
-         * Fetches and displays games for a given date
-         * @param {string} dateString The date in 'YYYY-MM-DD' format
-         */
         async function fetchAndDisplayGames(dateString) {
             gamesGrid.innerHTML = '';
             currentGames = [];
@@ -195,10 +225,6 @@
             }
         }
 
-        /**
-         * Renders game cards to the grid
-         * @param {Array} games Array of game objects from the API
-         */
         function renderGames(games) {
             gamesGrid.innerHTML = '';
 
@@ -210,10 +236,8 @@
 
                 if (aInProgress && !bInProgress) return -1;
                 if (!aInProgress && bInProgress) return 1;
-                
                 if (aIsPostponed && !bIsPostponed) return -1;
                 if (!aIsPostponed && bIsPostponed) return 1;
-                
                 return new Date(a.gameDate) - new Date(b.gameDate);
             });
 
@@ -247,12 +271,7 @@
                 let decisionHtml = '';
                 if (isPostponed) {
                     const rescheduledDate = game.rescheduledGameDate ? new Date(game.rescheduledGameDate).toLocaleDateString() : 'TBD';
-                    decisionHtml = `
-                    <div class="mt-4 pt-2 text-xs text-red-300">
-                        <p class="font-semibold">Rescheduled to: ${rescheduledDate}</p>
-                        ${game.description ? `<p>${game.description}</p>` : ''}
-                    </div>
-                    `;
+                    decisionHtml = `<div class="mt-4 pt-2 text-xs text-red-300"><p class="font-semibold">Rescheduled to: ${rescheduledDate}</p></div>`;
                 } else if (isFinal) {
                     const winnerName = normalizeString(game.decisions?.winner?.fullName || 'N/A');
                     const loserName = normalizeString(game.decisions?.loser?.fullName || 'N/A');
@@ -262,23 +281,18 @@
                         <p class="text-green-400">W: ${winnerName}</p>
                         <p class="text-gray-400">L: ${loserName}</p>
                         ${saveName ? `<p class="text-yellow-400">S: ${saveName}</p>` : ''}
-                    </div>
-                    `;
+                    </div>`;
                 } else {
                      decisionHtml = `
                     <div class="border-t border-gray-700 mt-4 pt-2 text-xs text-gray-400">
                         <p id="away-pitcher-${game.gamePk}">A: ${normalizeString(game.teams.away.probablePitcher?.fullName || 'TBD')}</p>
                         <p id="home-pitcher-${game.gamePk}">H: ${normalizeString(game.teams.home.probablePitcher?.fullName || 'TBD')}</p>
-                    </div>
-                    `;
+                    </div>`;
                 }
                 
                 let gameTypeIndicator = '';
-                if (isDoubleHeader) {
-                    gameTypeIndicator = `<span class="text-xs font-bold text-yellow-400"> (DH Game ${game.gameNumber})</span>`;
-                } else if (isResumed) {
-                     gameTypeIndicator = `<span class="text-xs font-bold text-yellow-400"> (Resumed)</span>`;
-                }
+                if (isDoubleHeader) gameTypeIndicator = `<span class="text-xs font-bold text-yellow-400"> (DH Game ${game.gameNumber})</span>`;
+                else if (isResumed) gameTypeIndicator = `<span class="text-xs font-bold text-yellow-400"> (Resumed)</span>`;
 
                 let statusDisplay = status;
                 let statusColor = 'text-gray-400';
@@ -307,7 +321,7 @@
                             aR = inn.away?.runs !== undefined ? inn.away.runs : '';
                             hR = inn.home?.runs !== undefined ? inn.home.runs : '';
                             
-                            // 9회말 홈팀 미타석(끝내기 등)의 경우 'X' 표시
+                            // 9회말 미타석 'X' 처리
                             if (isFinal && inn.home?.runs === undefined && i >= 8 && aR !== '') {
                                 hR = 'X';
                             }
@@ -317,7 +331,6 @@
                         homeRow += `<td class="px-0.5 text-gray-300">${hR}</td>`;
                     }
 
-                    // Add R, H, E columns
                     headerRow += `<th class="px-0.5 pl-1.5 text-white font-medium">R</th><th class="px-0.5 text-gray-400 font-medium">H</th><th class="px-0.5 text-gray-400 font-medium">E</th>`;
                     awayRow += `<td class="px-0.5 pl-1.5 text-white font-bold">${game.linescore.teams.away?.runs ?? 0}</td><td class="px-0.5 text-gray-400">${game.linescore.teams.away?.hits ?? 0}</td><td class="px-0.5 text-gray-400">${game.linescore.teams.away?.errors ?? 0}</td>`;
                     homeRow += `<td class="px-0.5 pl-1.5 text-white font-bold">${game.linescore.teams.home?.runs ?? 0}</td><td class="px-0.5 text-gray-400">${game.linescore.teams.home?.hits ?? 0}</td><td class="px-0.5 text-gray-400">${game.linescore.teams.home?.errors ?? 0}</td>`;
@@ -352,9 +365,7 @@
                 `;
                 gamesGrid.appendChild(gameCard);
 
-                if (!isFinal && !isPostponed) {
-                    updatePitcherStatsOnCard(game);
-                }
+                if (!isFinal && !isPostponed) updatePitcherStatsOnCard(game);
             });
             lucide.createIcons();
         }
@@ -368,10 +379,7 @@
                 const pitcher = data.people[0];
                 const seasonStats = pitcher.stats?.find(s => s.type?.displayName === 'season' && s.group?.displayName === 'pitching');
                 return seasonStats?.stat || null;
-            } catch (error) {
-                console.error(`Error fetching stats for pitcher ${pitcherId}:`, error);
-                return null;
-            }
+            } catch (error) { return null; }
         }
 
         async function updatePitcherStatsOnCard(game) {
@@ -391,7 +399,6 @@
                 const statsString = awayStats ? ` (${awayStats.wins || 0}-${awayStats.losses || 0}, ${awayStats.era || '0.00'})` : '';
                 awayPitcherElem.textContent = `A: ${name}${statsString}`;
             }
-            
             if (homePitcherElem && game.teams.home.probablePitcher) {
                 const name = normalizeString(game.teams.home.probablePitcher.fullName);
                 const statsString = homeStats ? ` (${homeStats.wins || 0}-${homeStats.losses || 0}, ${homeStats.era || '0.00'})` : '';
@@ -399,10 +406,6 @@
             }
         }
 
-        /**
-         * Fetches and displays the box score for a specific game
-         * @param {string} gamePk The unique ID for the game
-         */
         async function fetchAndDisplayBoxscore(gamePk) {
             openModal();
             modalTitle.textContent = 'Box Score';
@@ -423,18 +426,12 @@
             }
         }
 
-        /**
-         * Renders the detailed box score inside the modal
-         * @param {Object} data The boxscore data from the API
-         * @param {Object} decisions The decisions object for the game
-         */
         function renderBoxscore(data, decisions) {
             const { away, home } = data.teams;
             modalTitle.textContent = `${away.team.name} @ ${home.team.name}`;
             
             const createPlayerTable = (teamData, type) => {
                 const players = teamData.players;
-                const statsType = type === 'batting' ? 'batting' : 'pitching';
                 const headers = type === 'batting' 
                     ? ['Player', 'AB', 'R', 'H', 'HR', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS'] 
                     : ['Player', 'IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA', 'Result'];
@@ -442,22 +439,41 @@
                 let tableRows = '';
                 
                 if (type === 'batting') {
-                    const battingOrder = teamData.battingOrder.map(id => `ID${id}`);
+                    // 적용된 파싱 로직 호출
+                    const { starters, subs } = parseBatters(teamData);
                     
-                    battingOrder.forEach((playerID, index) => {
-                        const player = players[playerID];
+                    // 선발타자 렌더링
+                    starters.forEach((player, index) => {
                         if (player && player.stats.batting) {
                             const stats = player.stats.batting;
                             const namePrefix = `${index + 1}. `;
                             tableRows += `
                                 <tr>
-                                    <td class="whitespace-nowrap text-left">${namePrefix}${player.person.fullName} <span class="text-gray-400">${player.position.abbreviation}</span></td>
+                                    <td class="whitespace-nowrap text-left">${namePrefix}${player.person.fullName} <span class="text-gray-400 text-xs">${player.position.abbreviation}</span></td>
                                     <td>${stats.atBats ?? 0}</td><td>${stats.runs ?? 0}</td><td>${stats.hits ?? 0}</td><td>${stats.homeRuns ?? 0}</td>
                                     <td>${stats.rbi ?? 0}</td><td>${stats.baseOnBalls ?? 0}</td><td>${stats.strikeOuts ?? 0}</td>
                                     <td>${stats.leftOnBase ?? 0}</td><td>${player.seasonStats.batting.avg ?? '.---'}</td><td>${player.seasonStats.batting.ops ?? '.---'}</td>
                                 </tr>`;
                         }
                     });
+
+                    // 교체타자 렌더링
+                    if (subs.length > 0) {
+                        tableRows += `<tr class="bg-gray-800 border-t border-gray-600"><td colspan="11" class="text-left font-bold text-xs py-2 text-gray-400">SUBSTITUTES</td></tr>`;
+                        subs.forEach((player) => {
+                            if (player && player.stats.batting) {
+                                const stats = player.stats.batting;
+                                tableRows += `
+                                <tr>
+                                    <td class="whitespace-nowrap text-left pl-4"><span class="text-gray-500">-</span> ${player.person.fullName} <span class="text-yellow-500 text-xs">PH</span></td>
+                                    <td>${stats.atBats ?? 0}</td><td>${stats.runs ?? 0}</td><td>${stats.hits ?? 0}</td><td>${stats.homeRuns ?? 0}</td>
+                                    <td>${stats.rbi ?? 0}</td><td>${stats.baseOnBalls ?? 0}</td><td>${stats.strikeOuts ?? 0}</td>
+                                    <td>${stats.leftOnBase ?? 0}</td><td>${player.seasonStats.batting.avg ?? '.---'}</td><td>${player.seasonStats.batting.ops ?? '.---'}</td>
+                                </tr>`;
+                            }
+                        });
+                    }
+
                 } else { // Pitching
                     teamData.pitchers.forEach((playerID, index) => {
                         const player = players[`ID${playerID}`];
@@ -473,7 +489,7 @@
 
                             tableRows += `
                                 <tr>
-                                    <td class="whitespace-nowrap text-left">${player.person.fullName} <span class="text-gray-400">${position}</span></td>
+                                    <td class="whitespace-nowrap text-left">${player.person.fullName} <span class="text-gray-400 text-xs">${position}</span></td>
                                     <td>${stats.inningsPitched ?? '0.0'}</td><td>${stats.hits ?? 0}</td><td>${stats.runs ?? 0}</td>
                                     <td>${stats.earnedRuns ?? 0}</td><td>${stats.baseOnBalls ?? 0}</td><td>${stats.strikeOuts ?? 0}</td>
                                     <td>${stats.homeRuns ?? 0}</td><td>${player.seasonStats.pitching.era ?? '-.--'}</td><td>${resultCell}</td>
@@ -481,7 +497,6 @@
                         }
                     });
                 }
-
 
                 return `
                     <div class="mb-8">
@@ -566,9 +581,6 @@
             }
         }
         
-        /**
-         * Fetches all data for a day and triggers an XLSX download
-         */
         async function downloadAllGamesXLSX() {
             if (currentGames.length === 0) {
                 alert("No games to download for the selected date.");
@@ -584,7 +596,6 @@
                 const gameDataPromises = currentGames.map(game => {
                     const boxscorePromise = fetch(`${API_BASE_URL}/game/${game.gamePk}/boxscore`).then(res => res.json());
                     const linescorePromise = fetch(`${API_BASE_URL}/game/${game.gamePk}/linescore`).then(res => res.json());
-                    // Pass along the decisions from the initial fetch
                     return Promise.all([boxscorePromise, linescorePromise, Promise.resolve(game.decisions)]);
                 });
 
@@ -592,11 +603,9 @@
 
                 const wb = XLSX.utils.book_new();
                 const allSheetData = [];
-                
-                const maxInnings = Math.max(...allGamesData.map(([, ls]) => ls.innings.length));
 
                 allGamesData.forEach(([boxscore, linescore, decisions]) => {
-                    allSheetData.push(...convertGameDataToArray(boxscore, linescore, decisions, maxInnings));
+                    allSheetData.push(...convertGameDataToArray(boxscore, linescore, decisions));
                     allSheetData.push([]); // Blank row between games
                     allSheetData.push([]); // Blank row between games
                 });
@@ -619,53 +628,28 @@
             }
         }
 
-        /**
-         * Removes accents and special characters from a string.
-         * @param {string} str The string to normalize.
-         * @returns {string} The normalized string.
-         */
         function normalizeString(str) {
             if (!str) return '';
             return str
-                .normalize("NFD") // Decompose combined graphemes into base characters and diacritics
-                .replace(/[\u0300-\u036f]/g, "") // Remove diacritics
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
                 .replace(/ñ/g, 'n')
                 .replace(/Ñ/g, 'N');
         }
 
-        /**
-         * Formats an IP decimal string (e.g., "6.2") into a fractional string (e.g., "6 2/3").
-         * @param {string} ipDecimalString - The IP string from the API.
-         * @returns {string} The IP string formatted with fractions.
-         */
         function formatIp(ipDecimalString) {
             if (!ipDecimalString || ipDecimalString === '0.0') return '0';
             const parts = ipDecimalString.split('.');
             const innings = parts[0];
             const outs = parts[1];
 
-            if (!outs || outs === '0') {
-                return innings;
-            }
-
+            if (!outs || outs === '0') return innings;
             const fraction = outs === '1' ? '1/3' : '2/3';
-
-            if (innings === '0') {
-                return fraction;
-            }
-
+            if (innings === '0') return fraction;
             return `${innings} ${fraction}`;
         }
 
-        /**
-         * Converts a single game's data into an array of arrays for XLSX.
-         * @param {object} boxscore - The boxscore data for a game.
-         * @param {object} linescore - The linescore data for a game.
-         * @param {object} decisions - The decisions object for the game.
-         * @param {number} maxInnings - The maximum number of innings for the day for padding.
-         * @returns {Array<Array<string>>} An array of rows for one game.
-         */
-        function convertGameDataToArray(boxscore, linescore, decisions, maxInnings) {
+        function convertGameDataToArray(boxscore, linescore, decisions) {
             const { away, home } = boxscore.teams;
             let data = [];
 
@@ -673,7 +657,7 @@
             data.push([`Date: ${gameDatePicker.value}`]);
             data.push([]);
 
-            // Linescore (Fixed 9 innings + OT)
+            // 엑셀 스코어보드 고정 및 OT 계산 기능
             data.push(['Team', 1, 2, 3, 4, 5, 6, 7, 8, 9, 'OT', 'R', 'H', 'E']);
 
             let awayInningScores = [];
@@ -695,7 +679,6 @@
                 }
             });
 
-            // Pad to 9 innings if the game was shorter
             while (awayInningScores.length < 9) awayInningScores.push('');
             while (homeInningScores.length < 9) homeInningScores.push('');
 
@@ -707,26 +690,43 @@
             data.push([]);
 
             const processTeam = (teamData) => {
-                const battingOrder = teamData.battingOrder.map(id => `ID${id}`);
+                const { starters, subs } = parseBatters(teamData);
 
-                // Batting
-                data.push([`${teamData.team.name} - Batting`]);
+                // Batting (Starters)
+                data.push([`${teamData.team.name} - Batting (Starters)`]);
+                // 타순(A열)과 플레이어(B열) 분리 출력
                 data.push(['Order', 'Player', 'Position', 'AB', 'R', 'H', 'HR', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS']);
                 
-                battingOrder.forEach((id, index) => {
-                    const p = teamData.players[id];
+                starters.forEach((p, index) => {
                     if (p && p.stats.batting) {
                         const s = p.stats.batting;
                         const normalizedName = normalizeString(p.person.fullName);
                         data.push([index + 1, normalizedName, p.position.abbreviation, s.atBats ?? 0, s.runs ?? 0, s.hits ?? 0, s.homeRuns ?? 0, s.rbi ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.leftOnBase ?? 0, p.seasonStats.batting.avg ?? 'N/A', p.seasonStats.batting.ops ?? 'N/A']);
                     }
                 });
+
+                // Batting (Substitutes)
+                if (subs.length > 0) {
+                    data.push([]);
+                    data.push([`${teamData.team.name} - Substitutes`]);
+                    data.push(['Order', 'Player', 'Position', 'AB', 'R', 'H', 'HR', 'RBI', 'BB', 'SO', 'LOB', 'AVG', 'OPS']);
+                    subs.forEach((p) => {
+                        if (p && p.stats.batting) {
+                            const s = p.stats.batting;
+                            const normalizedName = normalizeString(p.person.fullName);
+                            // 교체 선수는 Order를 '-'로, Position을 'PH'로 고정하여 표기
+                            data.push(['-', normalizedName, 'PH', s.atBats ?? 0, s.runs ?? 0, s.hits ?? 0, s.homeRuns ?? 0, s.rbi ?? 0, s.baseOnBalls ?? 0, s.strikeOuts ?? 0, s.leftOnBase ?? 0, p.seasonStats.batting.avg ?? 'N/A', p.seasonStats.batting.ops ?? 'N/A']);
+                        }
+                    });
+                }
+
                 const teamBattingStats = teamData.teamStats.batting;
                 data.push(['', 'Total', '', teamBattingStats.atBats, teamBattingStats.runs, teamBattingStats.hits, teamBattingStats.homeRuns, teamBattingStats.rbi, teamBattingStats.baseOnBalls, teamBattingStats.strikeOuts, teamBattingStats.leftOnBase, teamBattingStats.avg, teamBattingStats.ops]);
                 data.push([]);
 
                 // Pitching
                 data.push([`${teamData.team.name} - Pitching`]);
+                // 타자 포맷에 맞게 투수 정보도 한 열 밀어서 출력
                 const pitchingHeader = ['', 'Player', 'Position', 'IP', 'H', 'R', 'ER', 'BB', 'SO', 'HR', 'ERA', 'Result'];
                 const totalHeader = ['', 'Total IP', 'Total H', 'Total R', 'Total ER', 'Total BB', 'Total SO', 'Total HR', 'Total ERA'];
                 data.push([...pitchingHeader, ...totalHeader]);
@@ -818,9 +818,7 @@
         });
 
         closeModalBtn.addEventListener('click', closeModal);
-        
         downloadAllBtn.addEventListener('click', downloadAllGamesXLSX);
-        
         probablePitchersBtn.addEventListener('click', showProbablePitchers);
 
         mainModal.addEventListener('click', (e) => {
