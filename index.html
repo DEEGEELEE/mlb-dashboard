@@ -143,9 +143,14 @@
         <div id="view-players" class="hidden">
             <div class="max-w-md mx-auto mb-8">
                 <label for="team-selector" class="block text-sm font-medium text-gray-300 mb-2 text-center">Select Team:</label>
-                <select id="team-selector" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white font-semibold">
-                    <option value="">-- Choose a Team --</option>
-                </select>
+                <div class="flex gap-2">
+                    <select id="team-selector" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white font-semibold">
+                        <option value="">-- Choose a Team --</option>
+                    </select>
+                    <button id="download-players-btn" disabled class="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-md flex-shrink-0 flex items-center justify-center transition-colors" title="Download Roster">
+                        <i data-lucide="download" class="w-5 h-5"></i>
+                    </button>
+                </div>
             </div>
             
             <div id="roster-container" class="bg-gray-800 rounded-lg p-4 shadow-md hidden">
@@ -165,9 +170,14 @@
         <div id="view-pitcher-stats" class="hidden">
             <div class="max-w-md mx-auto mb-8">
                 <label for="pitcher-team-selector" class="block text-sm font-medium text-gray-300 mb-2 text-center">Select Team:</label>
-                <select id="pitcher-team-selector" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white font-semibold">
-                    <option value="">-- Choose a Team --</option>
-                </select>
+                <div class="flex gap-2">
+                    <select id="pitcher-team-selector" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white font-semibold">
+                        <option value="">-- Choose a Team --</option>
+                    </select>
+                    <button id="download-pitcher-stats-btn" disabled class="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-md flex-shrink-0 flex items-center justify-center transition-colors" title="Download Pitcher Stats">
+                        <i data-lucide="download" class="w-5 h-5"></i>
+                    </button>
+                </div>
             </div>
             
             <div id="pitcher-stats-container" class="bg-gray-800 rounded-lg p-4 shadow-md hidden">
@@ -187,9 +197,14 @@
         <div id="view-batter-stats" class="hidden">
             <div class="max-w-md mx-auto mb-8">
                 <label for="batter-team-selector" class="block text-sm font-medium text-gray-300 mb-2 text-center">Select Team:</label>
-                <select id="batter-team-selector" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white font-semibold">
-                    <option value="">-- Choose a Team --</option>
-                </select>
+                <div class="flex gap-2">
+                    <select id="batter-team-selector" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white font-semibold">
+                        <option value="">-- Choose a Team --</option>
+                    </select>
+                    <button id="download-batter-stats-btn" disabled class="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-md flex-shrink-0 flex items-center justify-center transition-colors" title="Download Batter Stats">
+                        <i data-lucide="download" class="w-5 h-5"></i>
+                    </button>
+                </div>
             </div>
             
             <div id="batter-stats-container" class="bg-gray-800 rounded-lg p-4 shadow-md hidden">
@@ -259,6 +274,10 @@
         const batterStatsContent = document.getElementById('batter-stats-content');
         const batterTeamName = document.getElementById('batter-team-name');
 
+        const downloadPlayersBtn = document.getElementById('download-players-btn');
+        const downloadPitcherStatsBtn = document.getElementById('download-pitcher-stats-btn');
+        const downloadBatterStatsBtn = document.getElementById('download-batter-stats-btn');
+
         const gamesLoader = document.getElementById('games-loader');
         const standingsLoader = document.getElementById('standings-loader');
         const playersLoader = document.getElementById('players-loader');
@@ -289,7 +308,10 @@
         let currentGames = [];
         let currentTab = 'games';
 
-        // 정렬 및 UI 업데이트를 위한 로컬 상태 변수 추가
+        // 정렬 및 엑셀 다운로드를 위한 로컬 상태 변수 추가
+        let currentRosterData = [];
+        let currentRosterTeamName = '';
+
         let currentPitcherData = [];
         let currentPitcherSort = { column: null, isAsc: false };
         let currentPitcherTeamName = '';
@@ -430,6 +452,7 @@
         async function fetchAndDisplayRoster(teamId, teamName) {
             rosterContainer.classList.add('hidden');
             playersLoader.classList.remove('hidden');
+            downloadPlayersBtn.disabled = true;
 
             try {
                 const response = await fetch(`${API_BASE_URL}/teams/${teamId}/roster?rosterType=active&hydrate=person`);
@@ -438,6 +461,7 @@
 
                 if (data.roster && data.roster.length > 0) {
                     renderRoster(data.roster, teamName);
+                    downloadPlayersBtn.disabled = false;
                 } else {
                     rosterContent.innerHTML = `<div class="text-gray-400 text-center py-4">No active roster data available.</div>`;
                     rosterTeamName.textContent = `${teamName} - Active Roster`;
@@ -455,6 +479,8 @@
         function renderRoster(roster, teamName) {
             rosterContent.innerHTML = '';
             rosterTeamName.textContent = `${teamName} - Active Roster`;
+            currentRosterData = roster;
+            currentRosterTeamName = teamName;
 
             // 포지션 구분에 따라 투수와 타자 분리
             const pitchers = roster.filter(item => item.position?.type === 'Pitcher' || item.position?.abbreviation === 'P');
@@ -526,6 +552,7 @@
         async function fetchAndDisplayPitcherStats(teamId, teamName) {
             pitcherStatsContainer.classList.add('hidden');
             pitcherStatsLoader.classList.remove('hidden');
+            downloadPitcherStatsBtn.disabled = true;
 
             try {
                 // hydrate=person(stats(type=season)) 를 통해 올 시즌 성적을 함께 가져옴
@@ -535,6 +562,7 @@
 
                 if (data.roster && data.roster.length > 0) {
                     renderPitcherStats(data.roster, teamName);
+                    downloadPitcherStatsBtn.disabled = false;
                 } else {
                     pitcherStatsContent.innerHTML = `<div class="text-gray-400 text-center py-4">No roster data available.</div>`;
                     pitcherTeamName.textContent = `${teamName} - Pitching Stats`;
@@ -671,6 +699,7 @@
         async function fetchAndDisplayBatterStats(teamId, teamName) {
             batterStatsContainer.classList.add('hidden');
             batterStatsLoader.classList.remove('hidden');
+            downloadBatterStatsBtn.disabled = true;
 
             try {
                 const response = await fetch(`${API_BASE_URL}/teams/${teamId}/roster?rosterType=active&hydrate=person(stats(type=season))`);
@@ -679,6 +708,7 @@
 
                 if (data.roster && data.roster.length > 0) {
                     renderBatterStats(data.roster, teamName);
+                    downloadBatterStatsBtn.disabled = false;
                 } else {
                     batterStatsContent.innerHTML = `<div class="text-gray-400 text-center py-4">No roster data available.</div>`;
                     batterTeamName.textContent = `${teamName} - Batting Stats`;
@@ -841,18 +871,21 @@
                 const teams = divisionRecord.teamRecords;
 
                 let rows = '';
-                teams.forEach(team => {
-                    const strk = team.streak ? team.streak.streakCode : '-';
-                    const pct = team.winningPercentage || '.000';
-                    const gb = team.gamesBack === '-' ? '-' : team.gamesBack;
-                    const wcgb = team.wildCardGamesBack === '-' ? '-' : team.wildCardGamesBack;
-
+                teams.forEach(teamData => {
+                    const teamName = teamData.team.teamName || teamData.team.name;
+                    const w = teamData.wins;
+                    const l = teamData.losses;
+                    const pct = teamData.winningPercentage;
+                    const gb = teamData.gamesBack === '-' ? '-' : teamData.gamesBack;
+                    const wcgb = teamData.wildCardGamesBack === '-' ? '-' : teamData.wildCardGamesBack;
+                    const strk = teamData.streak?.streakCode || '-';
+                    
                     rows += `
                         <tr class="border-t border-gray-700/50 hover:bg-gray-700 transition-colors">
-                            <td class="py-2.5 text-left pl-3 font-medium">${team.team.name}</td>
-                            <td class="py-2.5">${team.wins}</td>
-                            <td class="py-2.5">${team.losses}</td>
-                            <td class="py-2.5">${pct}</td>
+                            <td class="py-2.5 font-medium text-white text-left pl-3">${teamName}</td>
+                            <td class="py-2.5">${w}</td>
+                            <td class="py-2.5">${l}</td>
+                            <td class="py-2.5 font-semibold text-blue-300">${pct}</td>
                             <td class="py-2.5">${gb}</td>
                             <td class="py-2.5">${wcgb}</td>
                             <td class="py-2.5">${strk}</td>
@@ -1450,6 +1483,94 @@
             setTimeout(() => mainModal.classList.add('hidden'), 300);
         }
 
+        // --- STREAMING_CHUNK:Downloading Tab Specific Data... ---
+        function downloadPlayersXLSX() {
+            if (!currentRosterData || currentRosterData.length === 0) return;
+            
+            const wb = XLSX.utils.book_new();
+            const wsData = [
+                [`${currentRosterTeamName} - Active Roster`],
+                []
+            ];
+
+            const pitchers = currentRosterData.filter(item => item.position?.type === 'Pitcher' || item.position?.abbreviation === 'P');
+            const batters = currentRosterData.filter(item => item.position?.type !== 'Pitcher' && item.position?.abbreviation !== 'P');
+            const sortRoster = (arr) => [...arr].sort((a, b) => (parseInt(a.jerseyNumber) || 999) - (parseInt(b.jerseyNumber) || 999));
+
+            if (pitchers.length > 0) {
+                wsData.push(['Pitchers']);
+                wsData.push(['#', 'Player', 'POS', 'B/T', 'HT/WT', 'Age']);
+                sortRoster(pitchers).forEach(item => {
+                    wsData.push([
+                        item.jerseyNumber || '-', 
+                        normalizeString(item.person.fullName), 
+                        item.position?.abbreviation || '-', 
+                        `${item.person.batSide?.code || '-'}/${item.person.pitchHand?.code || '-'}`, 
+                        `${item.person.height || '-'} / ${item.person.weight || '-'} lbs`, 
+                        item.person.currentAge || '-'
+                    ]);
+                });
+                wsData.push([]);
+            }
+
+            if (batters.length > 0) {
+                wsData.push(['Batters']);
+                wsData.push(['#', 'Player', 'POS', 'B/T', 'HT/WT', 'Age']);
+                sortRoster(batters).forEach(item => {
+                    wsData.push([
+                        item.jerseyNumber || '-', 
+                        normalizeString(item.person.fullName), 
+                        item.position?.abbreviation || '-', 
+                        `${item.person.batSide?.code || '-'}/${item.person.pitchHand?.code || '-'}`, 
+                        `${item.person.height || '-'} / ${item.person.weight || '-'} lbs`, 
+                        item.person.currentAge || '-'
+                    ]);
+                });
+            }
+
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, "Active Roster");
+            XLSX.writeFile(wb, `${currentRosterTeamName.replace(/\s+/g, '_')}_Roster.xlsx`);
+        }
+
+        function downloadPitcherStatsXLSX() {
+            if (!currentPitcherData || currentPitcherData.length === 0) return;
+            const wb = XLSX.utils.book_new();
+            const wsData = [
+                [`${currentPitcherTeamName} - Pitching Stats`],
+                [],
+                ['#', 'Player', 'W', 'L', 'ERA', 'G', 'GS', 'SV', 'IP', 'H', 'R', 'ER', 'BB', 'SO', 'WHIP']
+            ];
+            
+            // 현재 화면에 정렬된 순서(currentPitcherData)를 그대로 엑셀에 반영
+            currentPitcherData.forEach(p => {
+                wsData.push([p.jerseyDisplay, p.name, p.wDisplay, p.lDisplay, p.eraDisplay, p.gDisplay, p.gsDisplay, p.svDisplay, p.ipDisplay, p.hDisplay, p.rDisplay, p.erDisplay, p.bbDisplay, p.soDisplay, p.whipDisplay]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, "Pitcher Stats");
+            XLSX.writeFile(wb, `${currentPitcherTeamName.replace(/\s+/g, '_')}_Pitcher_Stats.xlsx`);
+        }
+
+        function downloadBatterStatsXLSX() {
+            if (!currentBatterData || currentBatterData.length === 0) return;
+            const wb = XLSX.utils.book_new();
+            const wsData = [
+                [`${currentBatterTeamName} - Batting Stats`],
+                [],
+                ['#', 'Player', 'POS', 'G', 'AB', 'R', 'H', 'HR', 'RBI', 'BB', 'SO', 'SB', 'AVG', 'OBP', 'SLG', 'OPS']
+            ];
+            
+            // 현재 화면에 정렬된 순서(currentBatterData)를 그대로 엑셀에 반영
+            currentBatterData.forEach(p => {
+                wsData.push([p.jerseyDisplay, p.name, p.pos, p.gDisplay, p.abDisplay, p.rDisplay, p.hDisplay, p.hrDisplay, p.rbiDisplay, p.bbDisplay, p.soDisplay, p.sbDisplay, p.avgDisplay, p.obpDisplay, p.slgDisplay, p.opsDisplay]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, "Batter Stats");
+            XLSX.writeFile(wb, `${currentBatterTeamName.replace(/\s+/g, '_')}_Batting_Stats.xlsx`);
+        }
+
         // --- STREAMING_CHUNK:Hooking up Event Listeners... ---
         function switchTab(tabId) {
             currentTab = tabId;
@@ -1496,20 +1617,32 @@
 
         teamSelector.addEventListener('change', (e) => {
             const teamId = e.target.value;
-            if (teamId) fetchAndDisplayRoster(teamId, e.target.options[e.target.selectedIndex].text);
-            else rosterContainer.classList.add('hidden');
+            if (teamId) {
+                fetchAndDisplayRoster(teamId, e.target.options[e.target.selectedIndex].text);
+            } else {
+                rosterContainer.classList.add('hidden');
+                downloadPlayersBtn.disabled = true;
+            }
         });
 
         pitcherTeamSelector.addEventListener('change', (e) => {
             const teamId = e.target.value;
-            if (teamId) fetchAndDisplayPitcherStats(teamId, e.target.options[e.target.selectedIndex].text);
-            else pitcherStatsContainer.classList.add('hidden');
+            if (teamId) {
+                fetchAndDisplayPitcherStats(teamId, e.target.options[e.target.selectedIndex].text);
+            } else {
+                pitcherStatsContainer.classList.add('hidden');
+                downloadPitcherStatsBtn.disabled = true;
+            }
         });
 
         batterTeamSelector.addEventListener('change', (e) => {
             const teamId = e.target.value;
-            if (teamId) fetchAndDisplayBatterStats(teamId, e.target.options[e.target.selectedIndex].text);
-            else batterStatsContainer.classList.add('hidden');
+            if (teamId) {
+                fetchAndDisplayBatterStats(teamId, e.target.options[e.target.selectedIndex].text);
+            } else {
+                batterStatsContainer.classList.add('hidden');
+                downloadBatterStatsBtn.disabled = true;
+            }
         });
 
         gameDatePicker.addEventListener('change', () => {
@@ -1544,6 +1677,10 @@
         closeModalBtn.addEventListener('click', closeModal);
         downloadAllBtn.addEventListener('click', downloadAllGamesXLSX);
         probablePitchersBtn.addEventListener('click', showProbablePitchers);
+        
+        downloadPlayersBtn.addEventListener('click', downloadPlayersXLSX);
+        downloadPitcherStatsBtn.addEventListener('click', downloadPitcherStatsXLSX);
+        downloadBatterStatsBtn.addEventListener('click', downloadBatterStatsXLSX);
 
         mainModal.addEventListener('click', (e) => {
             if (e.target === mainModal) closeModal();
