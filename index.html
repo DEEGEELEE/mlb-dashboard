@@ -62,12 +62,22 @@
 <body class="antialiased">
 
     <div id="app-container" class="container mx-auto p-4 md:p-8">
-        <header class="text-center mb-8">
+        <header class="text-center mb-6">
             <h1 class="text-4xl font-bold text-white tracking-tight">MLB Game Day</h1>
             <p class="text-lg text-gray-400 mt-2">Browse daily MLB schedules and box scores.</p>
         </header>
 
-        <div class="max-w-4xl mx-auto mb-8 flex flex-col sm:flex-row gap-4 items-end justify-center">
+        <!-- Tabs Navigation -->
+        <nav class="flex justify-center space-x-2 mb-8 border-b border-gray-700 pb-4">
+            <button id="tab-games" class="px-6 py-2.5 bg-blue-600 text-white rounded-md font-semibold focus:outline-none transition-colors">Games</button>
+            <button id="tab-standings" class="px-6 py-2.5 bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-md font-semibold focus:outline-none transition-colors">Standings</button>
+            <button id="tab-players" class="px-6 py-2.5 bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-md font-semibold focus:outline-none transition-colors">Players</button>
+            <button id="tab-pitcher-stats" class="px-6 py-2.5 bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-md font-semibold focus:outline-none transition-colors">Pitcher Stats</button>
+            <button id="tab-batter-stats" class="px-6 py-2.5 bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-md font-semibold focus:outline-none transition-colors">Batter Stats</button>
+        </nav>
+
+        <!-- Common Controls (Date Picker, etc) -->
+        <div id="date-controls-container" class="max-w-4xl mx-auto mb-8 flex flex-col sm:flex-row gap-4 items-end justify-center">
             <div class="w-full sm:w-auto flex-grow">
                 <label for="game-date-picker" class="block text-sm font-medium text-gray-300 mb-2 text-center sm:text-left">Select Date:</label>
                 <div class="flex items-center gap-2">
@@ -83,7 +93,7 @@
                     </button>
                 </div>
             </div>
-            <div class="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
+            <div class="w-full sm:w-auto flex flex-col sm:flex-row gap-2" id="games-action-buttons">
                  <button id="download-all-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-md flex items-center justify-center text-sm">
                      <span id="download-btn-text">
                          <i data-lucide="download" class="inline-block w-4 h-4 mr-2"></i>
@@ -101,17 +111,98 @@
             </div>
         </div>
 
-        <main id="games-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        </main>
-        
-        <div id="loader" class="text-center py-12 hidden">
-            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mx-auto"></div>
-            <p class="mt-4 text-gray-400">Fetching game data...</p>
+        <!-- Games View -->
+        <div id="view-games">
+            <main id="games-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            </main>
+            
+            <div id="games-loader" class="text-center py-12 hidden">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mx-auto"></div>
+                <p class="mt-4 text-gray-400">Fetching game data...</p>
+            </div>
+            
+            <div id="no-games-message" class="text-center py-12 hidden">
+                 <i data-lucide="calendar-x" class="mx-auto h-16 w-16 text-white"></i>
+                <p class="mt-4 text-xl text-gray-400">No games scheduled for this date.</p>
+            </div>
         </div>
-        
-        <div id="no-games-message" class="text-center py-12 hidden">
-             <i data-lucide="calendar-x" class="mx-auto h-16 w-16 text-white"></i>
-            <p class="mt-4 text-xl text-gray-400">No games scheduled for this date.</p>
+
+        <!-- Standings View -->
+        <div id="view-standings" class="hidden">
+            <div id="standings-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Standings tables will be injected here -->
+            </div>
+            
+            <div id="standings-loader" class="text-center py-12 hidden">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mx-auto"></div>
+                <p class="mt-4 text-gray-400">Fetching standings data...</p>
+            </div>
+        </div>
+
+        <!-- Players View -->
+        <div id="view-players" class="hidden">
+            <div class="max-w-md mx-auto mb-8">
+                <label for="team-selector" class="block text-sm font-medium text-gray-300 mb-2 text-center">Select Team:</label>
+                <select id="team-selector" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white font-semibold">
+                    <option value="">-- Choose a Team --</option>
+                </select>
+            </div>
+            
+            <div id="roster-container" class="bg-gray-800 rounded-lg p-4 shadow-md hidden">
+                <h3 id="roster-team-name" class="text-2xl font-bold mb-4 text-blue-400 border-b border-gray-700 pb-2 text-center">Team Roster</h3>
+                <div id="roster-content" class="space-y-6">
+                    <!-- Roster tables will be injected here -->
+                </div>
+            </div>
+
+            <div id="players-loader" class="text-center py-12 hidden">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mx-auto"></div>
+                <p class="mt-4 text-gray-400">Fetching roster data...</p>
+            </div>
+        </div>
+
+        <!-- Pitcher Stats View -->
+        <div id="view-pitcher-stats" class="hidden">
+            <div class="max-w-md mx-auto mb-8">
+                <label for="pitcher-team-selector" class="block text-sm font-medium text-gray-300 mb-2 text-center">Select Team:</label>
+                <select id="pitcher-team-selector" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white font-semibold">
+                    <option value="">-- Choose a Team --</option>
+                </select>
+            </div>
+            
+            <div id="pitcher-stats-container" class="bg-gray-800 rounded-lg p-4 shadow-md hidden">
+                <h3 id="pitcher-team-name" class="text-2xl font-bold mb-4 text-blue-400 border-b border-gray-700 pb-2 text-center">Pitcher Stats</h3>
+                <div id="pitcher-stats-content" class="overflow-x-auto">
+                    <!-- Pitcher stats table will be injected here -->
+                </div>
+            </div>
+
+            <div id="pitcher-stats-loader" class="text-center py-12 hidden">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mx-auto"></div>
+                <p class="mt-4 text-gray-400">Fetching pitcher stats...</p>
+            </div>
+        </div>
+
+        <!-- Batter Stats View -->
+        <div id="view-batter-stats" class="hidden">
+            <div class="max-w-md mx-auto mb-8">
+                <label for="batter-team-selector" class="block text-sm font-medium text-gray-300 mb-2 text-center">Select Team:</label>
+                <select id="batter-team-selector" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white font-semibold">
+                    <option value="">-- Choose a Team --</option>
+                </select>
+            </div>
+            
+            <div id="batter-stats-container" class="bg-gray-800 rounded-lg p-4 shadow-md hidden">
+                <h3 id="batter-team-name" class="text-2xl font-bold mb-4 text-blue-400 border-b border-gray-700 pb-2 text-center">Batter Stats</h3>
+                <div id="batter-stats-content" class="overflow-x-auto">
+                    <!-- Batter stats table will be injected here -->
+                </div>
+            </div>
+
+            <div id="batter-stats-loader" class="text-center py-12 hidden">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mx-auto"></div>
+                <p class="mt-4 text-gray-400">Fetching batter stats...</p>
+            </div>
         </div>
 
     </div>
@@ -135,9 +226,47 @@
     <script type="module">
         // --- DOM Elements ---
         const gameDatePicker = document.getElementById('game-date-picker');
+        const dateControlsContainer = document.getElementById('date-controls-container');
+        
+        const tabGamesBtn = document.getElementById('tab-games');
+        const tabStandingsBtn = document.getElementById('tab-standings');
+        const tabPlayersBtn = document.getElementById('tab-players');
+        const tabPitcherStatsBtn = document.getElementById('tab-pitcher-stats');
+        const tabBatterStatsBtn = document.getElementById('tab-batter-stats');
+        
+        const viewGames = document.getElementById('view-games');
+        const viewStandings = document.getElementById('view-standings');
+        const viewPlayers = document.getElementById('view-players');
+        const viewPitcherStats = document.getElementById('view-pitcher-stats');
+        const viewBatterStats = document.getElementById('view-batter-stats');
+        const gamesActionButtons = document.getElementById('games-action-buttons');
+
         const gamesGrid = document.getElementById('games-grid');
-        const loader = document.getElementById('loader');
+        const standingsGrid = document.getElementById('standings-grid');
+        
+        const teamSelector = document.getElementById('team-selector');
+        const rosterContainer = document.getElementById('roster-container');
+        const rosterContent = document.getElementById('roster-content');
+        const rosterTeamName = document.getElementById('roster-team-name');
+
+        const pitcherTeamSelector = document.getElementById('pitcher-team-selector');
+        const pitcherStatsContainer = document.getElementById('pitcher-stats-container');
+        const pitcherStatsContent = document.getElementById('pitcher-stats-content');
+        const pitcherTeamName = document.getElementById('pitcher-team-name');
+        
+        const batterTeamSelector = document.getElementById('batter-team-selector');
+        const batterStatsContainer = document.getElementById('batter-stats-container');
+        const batterStatsContent = document.getElementById('batter-stats-content');
+        const batterTeamName = document.getElementById('batter-team-name');
+
+        const gamesLoader = document.getElementById('games-loader');
+        const standingsLoader = document.getElementById('standings-loader');
+        const playersLoader = document.getElementById('players-loader');
+        const pitcherStatsLoader = document.getElementById('pitcher-stats-loader');
+        const batterStatsLoader = document.getElementById('batter-stats-loader');
+        
         const noGamesMessage = document.getElementById('no-games-message');
+        
         const downloadAllBtn = document.getElementById('download-all-btn');
         const downloadBtnText = document.getElementById('download-btn-text');
         const downloadBtnLoader = document.getElementById('download-btn-loader');
@@ -158,6 +287,16 @@
 
         // --- App State ---
         let currentGames = [];
+        let currentTab = 'games';
+
+        // 정렬 및 UI 업데이트를 위한 로컬 상태 변수 추가
+        let currentPitcherData = [];
+        let currentPitcherSort = { column: null, isAsc: false };
+        let currentPitcherTeamName = '';
+
+        let currentBatterData = [];
+        let currentBatterSort = { column: null, isAsc: false };
+        let currentBatterTeamName = '';
 
         // --- Helper Function: 선발타자 1~9번과 교체선수 분리 ---
         function parseBatters(teamData) {
@@ -196,12 +335,18 @@
             return { starters, subs };
         }
 
+        // --- STREAMING_CHUNK:Initializing data fetch functions... ---
+        async function fetchAllData(dateString) {
+            fetchAndDisplayGames(dateString);
+            fetchAndDisplayStandings(dateString);
+        }
+
         // --- Functions ---
         async function fetchAndDisplayGames(dateString) {
             gamesGrid.innerHTML = '';
             currentGames = [];
             noGamesMessage.classList.add('hidden');
-            loader.classList.remove('hidden');
+            gamesLoader.classList.remove('hidden');
             [downloadAllBtn, refreshBtn, probablePitchersBtn, prevDayBtn, nextDayBtn].forEach(btn => btn.disabled = true);
 
             try {
@@ -220,11 +365,527 @@
                 console.error("Error fetching schedule:", error);
                 gamesGrid.innerHTML = `<p class="text-red-400 text-center col-span-full">Could not fetch game data. Please try again later.</p>`;
             } finally {
-                loader.classList.add('hidden');
+                gamesLoader.classList.add('hidden');
                 [refreshBtn, probablePitchersBtn, prevDayBtn, nextDayBtn].forEach(btn => btn.disabled = false);
             }
         }
 
+        async function fetchAndDisplayStandings(dateString) {
+            standingsGrid.innerHTML = '';
+            standingsLoader.classList.remove('hidden');
+
+            try {
+                // MLB API 500 에러 방지를 위해 날짜에서 연도(season)를 추출하여 함께 전달
+                const season = dateString.split('-')[0];
+                
+                // leagueId 103 = AL, 104 = NL, &hydrate=division 파라미터 추가
+                const response = await fetch(`${API_BASE_URL}/standings?leagueId=103,104&season=${season}&date=${dateString}&standingsTypes=regularSeason&hydrate=division`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+
+                if (data.records && data.records.length > 0) {
+                    renderStandings(data.records);
+                } else {
+                    standingsGrid.innerHTML = `<p class="text-gray-400 text-center col-span-full">No standings data available for this date.</p>`;
+                }
+            } catch (error) {
+                console.error("Error fetching standings:", error);
+                standingsGrid.innerHTML = `<p class="text-red-400 text-center col-span-full">Could not fetch standings data. Please try again later.</p>`;
+            } finally {
+                standingsLoader.classList.add('hidden');
+            }
+        }
+
+        async function fetchTeams() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/teams?sportId=1`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                
+                const teams = data.teams.sort((a, b) => a.name.localeCompare(b.name));
+                teams.forEach(team => {
+                    // Populate Players Tab Selector
+                    const option1 = document.createElement('option');
+                    option1.value = team.id;
+                    option1.textContent = team.name;
+                    teamSelector.appendChild(option1);
+                    
+                    // Populate Pitcher Stats Selector
+                    const option2 = document.createElement('option');
+                    option2.value = team.id;
+                    option2.textContent = team.name;
+                    pitcherTeamSelector.appendChild(option2);
+
+                    // Populate Batter Stats Selector
+                    const option3 = document.createElement('option');
+                    option3.value = team.id;
+                    option3.textContent = team.name;
+                    batterTeamSelector.appendChild(option3);
+                });
+            } catch (error) {
+                console.error("Error fetching teams:", error);
+            }
+        }
+
+        async function fetchAndDisplayRoster(teamId, teamName) {
+            rosterContainer.classList.add('hidden');
+            playersLoader.classList.remove('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/teams/${teamId}/roster?rosterType=active&hydrate=person`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+
+                if (data.roster && data.roster.length > 0) {
+                    renderRoster(data.roster, teamName);
+                } else {
+                    rosterContent.innerHTML = `<div class="text-gray-400 text-center py-4">No active roster data available.</div>`;
+                    rosterTeamName.textContent = `${teamName} - Active Roster`;
+                    rosterContainer.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error("Error fetching roster:", error);
+                rosterContent.innerHTML = `<div class="text-red-400 text-center py-4">Could not fetch roster data. Please try again later.</div>`;
+                rosterContainer.classList.remove('hidden');
+            } finally {
+                playersLoader.classList.add('hidden');
+            }
+        }
+
+        function renderRoster(roster, teamName) {
+            rosterContent.innerHTML = '';
+            rosterTeamName.textContent = `${teamName} - Active Roster`;
+
+            // 포지션 구분에 따라 투수와 타자 분리
+            const pitchers = roster.filter(item => item.position?.type === 'Pitcher' || item.position?.abbreviation === 'P');
+            const batters = roster.filter(item => item.position?.type !== 'Pitcher' && item.position?.abbreviation !== 'P');
+
+            // 등번호 순으로 정렬하는 헬퍼 함수
+            const sortRoster = (arr) => [...arr].sort((a, b) => {
+                const numA = parseInt(a.jerseyNumber) || 999;
+                const numB = parseInt(b.jerseyNumber) || 999;
+                return numA - numB;
+            });
+
+            // 개별 테이블 생성 함수
+            const generateTable = (title, players) => {
+                if (!players || players.length === 0) return '';
+                
+                let rows = '';
+                sortRoster(players).forEach(item => {
+                    const person = item.person;
+                    const jerseyNumber = item.jerseyNumber || '-';
+                    const name = normalizeString(person.fullName);
+                    const position = item.position?.abbreviation || '-';
+                    const batThrow = `${person.batSide?.code || '-'}/${person.pitchHand?.code || '-'}`;
+                    const htWt = `${person.height || '-'} / ${person.weight || '-'} lbs`;
+                    const age = person.currentAge || '-';
+
+                    rows += `
+                        <tr class="border-t border-gray-700/50 hover:bg-gray-700 transition-colors">
+                            <td class="py-2.5 font-semibold text-gray-300 w-12">${jerseyNumber}</td>
+                            <td class="py-2.5 text-left pl-3 font-medium text-white">${name}</td>
+                            <td class="py-2.5">${position}</td>
+                            <td class="py-2.5">${batThrow}</td>
+                            <td class="py-2.5 text-gray-400">${htWt}</td>
+                            <td class="py-2.5">${age}</td>
+                        </tr>
+                    `;
+                });
+
+                return `
+                    <div class="bg-gray-900/40 rounded-lg overflow-hidden border border-gray-700">
+                        <h4 class="text-lg font-bold text-white bg-gray-700 px-4 py-2 border-b border-blue-500">${title}</h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-center stat-table whitespace-nowrap">
+                                <thead class="text-gray-400 font-semibold">
+                                    <tr>
+                                        <th class="text-center py-2 w-12">#</th>
+                                        <th class="text-left pl-3 py-2">Player</th>
+                                        <th class="py-2">POS</th>
+                                        <th class="py-2">B/T</th>
+                                        <th class="py-2">HT/WT</th>
+                                        <th class="py-2">Age</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rows}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            };
+
+            // 투수가 상단, 타자가 하단에 배치되도록 합산
+            rosterContent.innerHTML = generateTable('Pitchers', pitchers) + generateTable('Batters', batters);
+            rosterContainer.classList.remove('hidden');
+        }
+
+        // --- STREAMING_CHUNK:Fetching and Rendering Season Stats... ---
+        async function fetchAndDisplayPitcherStats(teamId, teamName) {
+            pitcherStatsContainer.classList.add('hidden');
+            pitcherStatsLoader.classList.remove('hidden');
+
+            try {
+                // hydrate=person(stats(type=season)) 를 통해 올 시즌 성적을 함께 가져옴
+                const response = await fetch(`${API_BASE_URL}/teams/${teamId}/roster?rosterType=active&hydrate=person(stats(type=season))`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+
+                if (data.roster && data.roster.length > 0) {
+                    renderPitcherStats(data.roster, teamName);
+                } else {
+                    pitcherStatsContent.innerHTML = `<div class="text-gray-400 text-center py-4">No roster data available.</div>`;
+                    pitcherTeamName.textContent = `${teamName} - Pitching Stats`;
+                    pitcherStatsContainer.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error("Error fetching pitcher stats:", error);
+                pitcherStatsContent.innerHTML = `<div class="text-red-400 text-center py-4">Could not fetch data. Please try again later.</div>`;
+                pitcherStatsContainer.classList.remove('hidden');
+            } finally {
+                pitcherStatsLoader.classList.add('hidden');
+            }
+        }
+
+        function renderPitcherStats(roster, teamName) {
+            currentPitcherTeamName = teamName;
+            currentPitcherSort = { column: null, isAsc: false }; // 팀 변경 시 정렬 초기화
+            
+            const pitchers = roster.filter(item => item.position?.type === 'Pitcher' || item.position?.abbreviation === 'P');
+
+            currentPitcherData = pitchers.map(item => {
+                const person = item.person;
+                const seasonStats = person.stats?.find(s => s.type?.displayName === 'season' && s.group?.displayName === 'pitching')?.splits?.[0]?.stat || {};
+                
+                // 데이터 변환: 정렬용 실제 숫자(value)와 화면 표출용 텍스트(display) 분리
+                return {
+                    jersey: parseInt(item.jerseyNumber) || 999,
+                    jerseyDisplay: item.jerseyNumber || '-',
+                    name: normalizeString(person.fullName),
+                    w: parseInt(seasonStats.wins) || 0, wDisplay: seasonStats.wins ?? '-',
+                    l: parseInt(seasonStats.losses) || 0, lDisplay: seasonStats.losses ?? '-',
+                    era: parseFloat(seasonStats.era) || 999, eraDisplay: seasonStats.era ?? '-.--',
+                    g: parseInt(seasonStats.gamesPlayed) || 0, gDisplay: seasonStats.gamesPlayed ?? '-',
+                    gs: parseInt(seasonStats.gamesStarted) || 0, gsDisplay: seasonStats.gamesStarted ?? '-',
+                    sv: parseInt(seasonStats.saves) || 0, svDisplay: seasonStats.saves ?? '-',
+                    ip: parseFloat(seasonStats.inningsPitched) || 0, ipDisplay: seasonStats.inningsPitched ?? '-',
+                    h: parseInt(seasonStats.hits) || 0, hDisplay: seasonStats.hits ?? '-',
+                    r: parseInt(seasonStats.runs) || 0, rDisplay: seasonStats.runs ?? '-',
+                    er: parseInt(seasonStats.earnedRuns) || 0, erDisplay: seasonStats.earnedRuns ?? '-',
+                    bb: parseInt(seasonStats.baseOnBalls) || 0, bbDisplay: seasonStats.baseOnBalls ?? '-',
+                    so: parseInt(seasonStats.strikeOuts) || 0, soDisplay: seasonStats.strikeOuts ?? '-',
+                    whip: parseFloat(seasonStats.whip) || 999, whipDisplay: seasonStats.whip ?? '-.--'
+                };
+            });
+
+            // 기본 정렬: 등번호 오름차순
+            currentPitcherData.sort((a, b) => a.jersey - b.jersey);
+            
+            updatePitcherStatsUI();
+        }
+
+        function updatePitcherStatsUI() {
+            pitcherTeamName.textContent = `${currentPitcherTeamName} - Pitching Stats`;
+            let rows = '';
+            
+            currentPitcherData.forEach(p => {
+                rows += `
+                    <tr class="border-t border-gray-700/50 hover:bg-gray-700 transition-colors">
+                        <td class="py-2.5 font-semibold text-gray-300 w-10">${p.jerseyDisplay}</td>
+                        <td class="py-2.5 text-left pl-3 font-medium text-white">${p.name}</td>
+                        <td class="py-2.5">${p.wDisplay}</td>
+                        <td class="py-2.5">${p.lDisplay}</td>
+                        <td class="py-2.5 font-bold text-blue-300">${p.eraDisplay}</td>
+                        <td class="py-2.5">${p.gDisplay}</td>
+                        <td class="py-2.5">${p.gsDisplay}</td>
+                        <td class="py-2.5">${p.svDisplay}</td>
+                        <td class="py-2.5 font-semibold text-gray-200">${p.ipDisplay}</td>
+                        <td class="py-2.5">${p.hDisplay}</td>
+                        <td class="py-2.5">${p.rDisplay}</td>
+                        <td class="py-2.5">${p.erDisplay}</td>
+                        <td class="py-2.5">${p.bbDisplay}</td>
+                        <td class="py-2.5 font-semibold text-gray-200">${p.soDisplay}</td>
+                        <td class="py-2.5">${p.whipDisplay}</td>
+                    </tr>
+                `;
+            });
+
+            const getSortIcon = (col) => currentPitcherSort.column === col ? (currentPitcherSort.isAsc ? ' ▲' : ' ▼') : '';
+
+            pitcherStatsContent.innerHTML = `
+                <table class="w-full text-sm text-center stat-table whitespace-nowrap bg-gray-900/40 rounded-lg overflow-hidden border border-gray-700">
+                    <thead class="text-gray-400 font-semibold bg-gray-800 select-none">
+                        <tr>
+                            <th class="text-center py-2 w-10 cursor-pointer hover:text-white" data-sort="jersey">#${getSortIcon('jersey')}</th>
+                            <th class="text-left pl-3 py-2 cursor-pointer hover:text-white" data-sort="name">Player${getSortIcon('name')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="w">W${getSortIcon('w')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="l">L${getSortIcon('l')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="era">ERA${getSortIcon('era')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="g">G${getSortIcon('g')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="gs">GS${getSortIcon('gs')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="sv">SV${getSortIcon('sv')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="ip">IP${getSortIcon('ip')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="h">H${getSortIcon('h')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="r">R${getSortIcon('r')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="er">ER${getSortIcon('er')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="bb">BB${getSortIcon('bb')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="so">SO${getSortIcon('so')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="whip">WHIP${getSortIcon('whip')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+            pitcherStatsContainer.classList.remove('hidden');
+        }
+
+        // 헤더 클릭 이벤트 위임 (투수)
+        pitcherStatsContent.addEventListener('click', (e) => {
+            const th = e.target.closest('th[data-sort]');
+            if (!th) return;
+            const column = th.dataset.sort;
+            
+            if (currentPitcherSort.column === column) {
+                currentPitcherSort.isAsc = !currentPitcherSort.isAsc;
+            } else {
+                currentPitcherSort.column = column;
+                currentPitcherSort.isAsc = false; // 내림차순(가장 큰 숫자/Z-A) 먼저
+            }
+
+            currentPitcherData.sort((a, b) => {
+                let valA = a[column];
+                let valB = b[column];
+
+                if (typeof valA === 'string') {
+                    return currentPitcherSort.isAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                } else {
+                    return currentPitcherSort.isAsc ? valA - valB : valB - valA;
+                }
+            });
+
+            updatePitcherStatsUI();
+        });
+
+        async function fetchAndDisplayBatterStats(teamId, teamName) {
+            batterStatsContainer.classList.add('hidden');
+            batterStatsLoader.classList.remove('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/teams/${teamId}/roster?rosterType=active&hydrate=person(stats(type=season))`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+
+                if (data.roster && data.roster.length > 0) {
+                    renderBatterStats(data.roster, teamName);
+                } else {
+                    batterStatsContent.innerHTML = `<div class="text-gray-400 text-center py-4">No roster data available.</div>`;
+                    batterTeamName.textContent = `${teamName} - Batting Stats`;
+                    batterStatsContainer.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error("Error fetching batter stats:", error);
+                batterStatsContent.innerHTML = `<div class="text-red-400 text-center py-4">Could not fetch data. Please try again later.</div>`;
+                batterStatsContainer.classList.remove('hidden');
+            } finally {
+                batterStatsLoader.classList.add('hidden');
+            }
+        }
+
+        function renderBatterStats(roster, teamName) {
+            currentBatterTeamName = teamName;
+            currentBatterSort = { column: null, isAsc: false }; // 팀 변경 시 정렬 초기화
+            
+            const batters = roster.filter(item => item.position?.type !== 'Pitcher' && item.position?.abbreviation !== 'P');
+
+            currentBatterData = batters.map(item => {
+                const person = item.person;
+                // 'batting' 대신 'hitting'으로 변경하여 API에서 제공하는 타자 성적을 올바르게 파싱
+                const seasonStats = person.stats?.find(s => s.type?.displayName === 'season' && s.group?.displayName === 'hitting')?.splits?.[0]?.stat || {};
+                
+                return {
+                    jersey: parseInt(item.jerseyNumber) || 999, jerseyDisplay: item.jerseyNumber || '-',
+                    name: normalizeString(person.fullName),
+                    pos: item.position?.abbreviation || '-',
+                    g: parseInt(seasonStats.gamesPlayed) || 0, gDisplay: seasonStats.gamesPlayed ?? '-',
+                    ab: parseInt(seasonStats.atBats) || 0, abDisplay: seasonStats.atBats ?? '-',
+                    r: parseInt(seasonStats.runs) || 0, rDisplay: seasonStats.runs ?? '-',
+                    h: parseInt(seasonStats.hits) || 0, hDisplay: seasonStats.hits ?? '-',
+                    hr: parseInt(seasonStats.homeRuns) || 0, hrDisplay: seasonStats.homeRuns ?? '-',
+                    rbi: parseInt(seasonStats.rbi) || 0, rbiDisplay: seasonStats.rbi ?? '-',
+                    bb: parseInt(seasonStats.baseOnBalls) || 0, bbDisplay: seasonStats.baseOnBalls ?? '-',
+                    so: parseInt(seasonStats.strikeOuts) || 0, soDisplay: seasonStats.strikeOuts ?? '-',
+                    sb: parseInt(seasonStats.stolenBases) || 0, sbDisplay: seasonStats.stolenBases ?? '-',
+                    avg: parseFloat(seasonStats.avg) || -1, avgDisplay: seasonStats.avg ?? '.---',
+                    obp: parseFloat(seasonStats.obp) || -1, obpDisplay: seasonStats.obp ?? '.---',
+                    slg: parseFloat(seasonStats.slg) || -1, slgDisplay: seasonStats.slg ?? '.---',
+                    ops: parseFloat(seasonStats.ops) || -1, opsDisplay: seasonStats.ops ?? '.---'
+                };
+            });
+
+            // 기본 정렬: 등번호 오름차순
+            currentBatterData.sort((a, b) => a.jersey - b.jersey);
+
+            updateBatterStatsUI();
+        }
+
+        function updateBatterStatsUI() {
+            batterTeamName.textContent = `${currentBatterTeamName} - Batting Stats`;
+            let rows = '';
+            
+            currentBatterData.forEach(p => {
+                rows += `
+                    <tr class="border-t border-gray-700/50 hover:bg-gray-700 transition-colors">
+                        <td class="py-2.5 font-semibold text-gray-300 w-10">${p.jerseyDisplay}</td>
+                        <td class="py-2.5 text-left pl-3 font-medium text-white">${p.name}</td>
+                        <td class="py-2.5 text-gray-400">${p.pos}</td>
+                        <td class="py-2.5">${p.gDisplay}</td>
+                        <td class="py-2.5">${p.abDisplay}</td>
+                        <td class="py-2.5">${p.rDisplay}</td>
+                        <td class="py-2.5 font-semibold text-gray-200">${p.hDisplay}</td>
+                        <td class="py-2.5 font-semibold text-blue-300">${p.hrDisplay}</td>
+                        <td class="py-2.5 font-semibold text-blue-300">${p.rbiDisplay}</td>
+                        <td class="py-2.5">${p.bbDisplay}</td>
+                        <td class="py-2.5">${p.soDisplay}</td>
+                        <td class="py-2.5">${p.sbDisplay}</td>
+                        <td class="py-2.5 font-bold text-gray-100">${p.avgDisplay}</td>
+                        <td class="py-2.5">${p.obpDisplay}</td>
+                        <td class="py-2.5">${p.slgDisplay}</td>
+                        <td class="py-2.5 font-bold text-blue-300">${p.opsDisplay}</td>
+                    </tr>
+                `;
+            });
+
+            const getSortIcon = (col) => currentBatterSort.column === col ? (currentBatterSort.isAsc ? ' ▲' : ' ▼') : '';
+
+            batterStatsContent.innerHTML = `
+                <table class="w-full text-sm text-center stat-table whitespace-nowrap bg-gray-900/40 rounded-lg overflow-hidden border border-gray-700">
+                    <thead class="text-gray-400 font-semibold bg-gray-800 select-none">
+                        <tr>
+                            <th class="text-center py-2 w-10 cursor-pointer hover:text-white" data-sort="jersey">#${getSortIcon('jersey')}</th>
+                            <th class="text-left pl-3 py-2 cursor-pointer hover:text-white" data-sort="name">Player${getSortIcon('name')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="pos">POS${getSortIcon('pos')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="g">G${getSortIcon('g')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="ab">AB${getSortIcon('ab')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="r">R${getSortIcon('r')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="h">H${getSortIcon('h')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="hr">HR${getSortIcon('hr')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="rbi">RBI${getSortIcon('rbi')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="bb">BB${getSortIcon('bb')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="so">SO${getSortIcon('so')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="sb">SB${getSortIcon('sb')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="avg">AVG${getSortIcon('avg')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="obp">OBP${getSortIcon('obp')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="slg">SLG${getSortIcon('slg')}</th>
+                            <th class="py-2 cursor-pointer hover:text-white" data-sort="ops">OPS${getSortIcon('ops')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+            batterStatsContainer.classList.remove('hidden');
+        }
+
+        // 헤더 클릭 이벤트 위임 (타자)
+        batterStatsContent.addEventListener('click', (e) => {
+            const th = e.target.closest('th[data-sort]');
+            if (!th) return;
+            const column = th.dataset.sort;
+            
+            if (currentBatterSort.column === column) {
+                currentBatterSort.isAsc = !currentBatterSort.isAsc;
+            } else {
+                currentBatterSort.column = column;
+                currentBatterSort.isAsc = false; // 내림차순 먼저
+            }
+
+            currentBatterData.sort((a, b) => {
+                let valA = a[column];
+                let valB = b[column];
+
+                if (typeof valA === 'string') {
+                    return currentBatterSort.isAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                } else {
+                    return currentBatterSort.isAsc ? valA - valB : valB - valA;
+                }
+            });
+
+            updateBatterStatsUI();
+        });
+
+        // --- STREAMING_CHUNK:Rendering Standings... ---
+        function renderStandings(records) {
+            standingsGrid.innerHTML = '';
+            
+            // API 응답 누락 대비 및 요청하신 'AL EAST' 형태의 출력을 위한 고유 ID 매핑
+            const divisionMap = {
+                201: { name: 'AL EAST', order: 1 },
+                202: { name: 'AL CENTRAL', order: 2 },
+                200: { name: 'AL WEST', order: 3 },
+                204: { name: 'NL EAST', order: 4 },
+                205: { name: 'NL CENTRAL', order: 5 },
+                203: { name: 'NL WEST', order: 6 }
+            };
+
+            const sortedRecords = [...records].sort((a, b) => {
+                const orderA = divisionMap[a.division?.id]?.order || 99;
+                const orderB = divisionMap[b.division?.id]?.order || 99;
+                return orderA - orderB;
+            });
+
+            sortedRecords.forEach(divisionRecord => {
+                const divId = divisionRecord.division?.id;
+                // 매핑된 이름을 우선 사용하고, 없으면 API 응답명, 둘 다 없으면 기본값 사용
+                const divName = divisionMap[divId]?.name || divisionRecord.division?.name || 'Unknown Division';
+                const teams = divisionRecord.teamRecords;
+
+                let rows = '';
+                teams.forEach(team => {
+                    const strk = team.streak ? team.streak.streakCode : '-';
+                    const pct = team.winningPercentage || '.000';
+                    const gb = team.gamesBack === '-' ? '-' : team.gamesBack;
+                    const wcgb = team.wildCardGamesBack === '-' ? '-' : team.wildCardGamesBack;
+
+                    rows += `
+                        <tr class="border-t border-gray-700/50 hover:bg-gray-700 transition-colors">
+                            <td class="py-2.5 text-left pl-3 font-medium">${team.team.name}</td>
+                            <td class="py-2.5">${team.wins}</td>
+                            <td class="py-2.5">${team.losses}</td>
+                            <td class="py-2.5">${pct}</td>
+                            <td class="py-2.5">${gb}</td>
+                            <td class="py-2.5">${wcgb}</td>
+                            <td class="py-2.5">${strk}</td>
+                        </tr>
+                    `;
+                });
+
+                const tableHtml = `
+                    <div class="bg-gray-800 rounded-lg p-4 shadow-md">
+                        <h3 class="text-lg font-bold mb-3 text-blue-400 border-b border-gray-700 pb-2">${divName}</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-center stat-table whitespace-nowrap">
+                                <thead class="text-gray-400 font-semibold bg-gray-900/50">
+                                    <tr>
+                                        <th class="text-left pl-3 py-2">Team</th>
+                                        <th class="py-2">W</th>
+                                        <th class="py-2">L</th>
+                                        <th class="py-2">PCT</th>
+                                        <th class="py-2">GB</th>
+                                        <th class="py-2">WCGB</th>
+                                        <th class="py-2">STRK</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                standingsGrid.innerHTML += tableHtml;
+            });
+        }
+
+        // --- STREAMING_CHUNK:Rendering Games and Mini Linescores... ---
         function renderGames(games) {
             gamesGrid.innerHTML = '';
 
@@ -406,6 +1067,7 @@
             }
         }
 
+        // --- STREAMING_CHUNK:Detailed Boxscore Modals... ---
         async function fetchAndDisplayBoxscore(gamePk) {
             openModal();
             modalTitle.textContent = 'Box Score';
@@ -439,7 +1101,7 @@
                 let tableRows = '';
                 
                 if (type === 'batting') {
-                    // 적용된 파싱 로직 호출
+                    // 적용된 파싱 로직 호출 (선발 및 교체)
                     const { starters, subs } = parseBatters(teamData);
                     
                     // 선발타자 렌더링
@@ -581,6 +1243,7 @@
             }
         }
         
+        // --- STREAMING_CHUNK:Configuring Excel Exports... ---
         async function downloadAllGamesXLSX() {
             if (currentGames.length === 0) {
                 alert("No games to download for the selected date.");
@@ -787,15 +1450,76 @@
             setTimeout(() => mainModal.classList.add('hidden'), 300);
         }
 
-        // --- Event Listeners ---
+        // --- STREAMING_CHUNK:Hooking up Event Listeners... ---
+        function switchTab(tabId) {
+            currentTab = tabId;
+            
+            const tabs = ['games', 'standings', 'players', 'pitcher-stats', 'batter-stats'];
+            
+            tabs.forEach(t => {
+                const view = document.getElementById(`view-${t}`);
+                const btn = document.getElementById(`tab-${t}`);
+                
+                // 이름 매핑의 차이 처리 (id는 tab-pitcher-stats, id는 view-pitcher-stats)
+                if (t === tabId) {
+                    view.classList.remove('hidden');
+                    btn.classList.replace('bg-gray-700', 'bg-blue-600');
+                    btn.classList.replace('text-gray-300', 'text-white');
+                } else {
+                    view.classList.add('hidden');
+                    btn.classList.replace('bg-blue-600', 'bg-gray-700');
+                    btn.classList.replace('text-white', 'text-gray-300');
+                }
+            });
+
+            // "Games"와 "Standings" 탭에서만 날짜 및 동작 컨트롤(버튼 등) 표시
+            if (tabId === 'games' || tabId === 'standings') {
+                dateControlsContainer.classList.remove('hidden');
+                // Games 탭에서만 엑셀 다운로드 등의 액션 버튼 표시
+                if (tabId === 'games') {
+                    gamesActionButtons.classList.remove('hidden');
+                } else {
+                    gamesActionButtons.classList.add('hidden');
+                }
+            } else {
+                // Players, Pitcher Stats, Batter Stats 탭에서는 날짜 및 동작 컨트롤 숨김
+                dateControlsContainer.classList.add('hidden');
+                gamesActionButtons.classList.add('hidden');
+            }
+        }
+
+        tabGamesBtn.addEventListener('click', () => switchTab('games'));
+        tabStandingsBtn.addEventListener('click', () => switchTab('standings'));
+        tabPlayersBtn.addEventListener('click', () => switchTab('players'));
+        tabPitcherStatsBtn.addEventListener('click', () => switchTab('pitcher-stats'));
+        tabBatterStatsBtn.addEventListener('click', () => switchTab('batter-stats'));
+
+        teamSelector.addEventListener('change', (e) => {
+            const teamId = e.target.value;
+            if (teamId) fetchAndDisplayRoster(teamId, e.target.options[e.target.selectedIndex].text);
+            else rosterContainer.classList.add('hidden');
+        });
+
+        pitcherTeamSelector.addEventListener('change', (e) => {
+            const teamId = e.target.value;
+            if (teamId) fetchAndDisplayPitcherStats(teamId, e.target.options[e.target.selectedIndex].text);
+            else pitcherStatsContainer.classList.add('hidden');
+        });
+
+        batterTeamSelector.addEventListener('change', (e) => {
+            const teamId = e.target.value;
+            if (teamId) fetchAndDisplayBatterStats(teamId, e.target.options[e.target.selectedIndex].text);
+            else batterStatsContainer.classList.add('hidden');
+        });
+
         gameDatePicker.addEventListener('change', () => {
             const selectedDate = gameDatePicker.value;
             localStorage.setItem('mlbDashboardSelectedDate', selectedDate); // Save date to browser storage
-            fetchAndDisplayGames(selectedDate);
+            fetchAllData(selectedDate);
         });
 
         refreshBtn.addEventListener('click', () => {
-            fetchAndDisplayGames(gameDatePicker.value);
+            fetchAllData(gameDatePicker.value);
         });
         
         prevDayBtn.addEventListener('click', () => {
@@ -827,6 +1551,7 @@
 
         // --- Initialization ---
         function init() {
+            fetchTeams();
             const savedDate = localStorage.getItem('mlbDashboardSelectedDate');
             let initialDate;
 
@@ -843,7 +1568,7 @@
             }
             
             gameDatePicker.value = initialDate;
-            fetchAndDisplayGames(initialDate);
+            fetchAllData(initialDate);
             lucide.createIcons();
         }
 
