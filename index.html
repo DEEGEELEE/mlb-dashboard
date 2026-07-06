@@ -1072,31 +1072,31 @@
                 const data = await response.json();
                 const pitcher = data.people[0];
                 const seasonStats = pitcher.stats?.find(s => s.type?.displayName === 'season' && s.group?.displayName === 'pitching');
-                return seasonStats?.stat || null;
+                return seasonStats?.splits?.[0]?.stat || null;
             } catch (error) { return null; }
         }
 
         async function updatePitcherStatsOnCard(game) {
-            const awayPitcherId = game.teams.away.probablePitcher?.id;
-            const homePitcherId = game.teams.home.probablePitcher?.id;
+            const awayPitcher = game.teams.away.probablePitcher;
+            const homePitcher = game.teams.home.probablePitcher;
 
-            const [awayStats, homeStats] = await Promise.all([
-                getPitcherSeasonStats(awayPitcherId),
-                getPitcherSeasonStats(homePitcherId)
-            ]);
+            const extractStats = (pitcher) => pitcher?.stats?.find(s => s.type?.displayName === 'season' && s.group?.displayName === 'pitching')?.splits?.[0]?.stat;
+            const formatStats = (stats) => stats ? ` (${stats.era || '0.00'}, ${stats.wins || 0}-${stats.losses || 0})` : '';
+
+            let awayStats = extractStats(awayPitcher);
+            let homeStats = extractStats(homePitcher);
+
+            if (!awayStats && awayPitcher?.id) awayStats = await getPitcherSeasonStats(awayPitcher.id);
+            if (!homeStats && homePitcher?.id) homeStats = await getPitcherSeasonStats(homePitcher.id);
 
             const awayPitcherElem = document.getElementById(`away-pitcher-${game.gamePk}`);
             const homePitcherElem = document.getElementById(`home-pitcher-${game.gamePk}`);
 
-            if (awayPitcherElem && game.teams.away.probablePitcher) {
-                const name = normalizeString(game.teams.away.probablePitcher.fullName);
-                const statsString = awayStats ? ` (${awayStats.wins || 0}-${awayStats.losses || 0}, ${awayStats.era || '0.00'})` : '';
-                awayPitcherElem.textContent = `A: ${name}${statsString}`;
+            if (awayPitcherElem && awayPitcher) {
+                awayPitcherElem.textContent = `A: ${normalizeString(awayPitcher.fullName)}${formatStats(awayStats)}`;
             }
-            if (homePitcherElem && game.teams.home.probablePitcher) {
-                const name = normalizeString(game.teams.home.probablePitcher.fullName);
-                const statsString = homeStats ? ` (${homeStats.wins || 0}-${homeStats.losses || 0}, ${homeStats.era || '0.00'})` : '';
-                homePitcherElem.textContent = `H: ${name}${statsString}`;
+            if (homePitcherElem && homePitcher) {
+                homePitcherElem.textContent = `H: ${normalizeString(homePitcher.fullName)}${formatStats(homeStats)}`;
             }
         }
 
