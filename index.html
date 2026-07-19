@@ -1171,7 +1171,7 @@
 
                 gameCard.innerHTML = `
                     <div class="flex-grow">
-                        <p class="text-sm ${statusColor} mb-2">${statusDisplay}${gameTypeIndicator} ${isPostponed ? '' : `- ${new Date(game.gameDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}</p>
+                        <p class="text-sm ${statusColor} mb-2">${statusDisplay}${gameTypeIndicator} ${isPostponed ? '' : `- ${new Date(game.gameDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`} at ${game.venue?.name || 'TBD'}</p>
                         <div class="flex items-center justify-between mb-2 p-1 rounded-md ${awayWon ? 'border border-green-500' : 'border border-transparent'}">
                             <span class="font-semibold text-lg">${awayTeam.team.name}</span>
                             <span class="font-bold text-2xl">${isPostponed ? '-' : (awayTeam.score ?? 0)}</span>
@@ -1289,7 +1289,7 @@
             const awayPitcherName = game.teams.away.probablePitcher?.fullName || 'TBD';
             const homePitcherName = game.teams.home.probablePitcher?.fullName || 'TBD';
             
-            modalTitle.textContent = `${awayName} @ ${homeName}`;
+            modalTitle.textContent = `${awayName} @ ${homeName} at ${game.venue?.name || 'TBD'}`;
 
             // Helper to normalize values based on configured axes
             const normalize = (val, min, max) => {
@@ -1460,7 +1460,7 @@
                 const response = await fetch(`${API_BASE_URL}/game/${gamePk}/boxscore`);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
-                renderBoxscore(data, game.decisions);
+                renderBoxscore(data, game);
             } catch (error) {
                 console.error("Error fetching boxscore:", error);
                 modalBody.innerHTML = `<p class="text-red-400 text-center">Could not fetch box score data.</p>`;
@@ -1469,9 +1469,10 @@
             }
         }
 
-        function renderBoxscore(data, decisions) {
+        function renderBoxscore(data, game) {
+            const decisions = game?.decisions;
             const { away, home } = data.teams;
-            modalTitle.textContent = `${away.team.name} @ ${home.team.name}`;
+            modalTitle.textContent = `${away.team.name} @ ${home.team.name} at ${game?.venue?.name || 'TBD'}`;
             
             const createPlayerTable = (teamData, type) => {
                 const players = teamData.players;
